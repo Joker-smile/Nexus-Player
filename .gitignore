@@ -16,6 +16,8 @@ dist/
 dist-electron/
 release/
 release/*
+build-release/
+build-release/*
 out/
 
 # IDE & Editor Settings

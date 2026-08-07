@@ -16,11 +16,11 @@
 
 | 运行平台 | 软件类型 | 描述说明 | 直接打开/下载链接 |
 | :--- | :--- | :--- | :--- |
-| **Windows 64位** | **单文件独立绿色版 (.exe)** | 推荐！单个 `.exe` 文件，双击即开即用 | 🚀 [直接运行 `NexusPlayer 1.0.0.exe`](file:///D:/wwwroot/pc_player/release/NexusPlayer%201.0.0.exe) |
-| **Windows 64位** | **免安装绿色解压文件夹** | 解压即用文件夹，性能稳定，启动极快 | 📂 [直接打开 `win-unpacked/NexusPlayer.exe`](file:///D:/wwwroot/pc_player/release/win-unpacked/NexusPlayer.exe) |
+| **Windows 64位** | **单文件独立绿色版 (.exe)** | 推荐！单个 `.exe` 文件，双击即开即用 | 🚀 [直接运行 `NexusPlayer 1.0.0.exe`](file:///D:/wwwroot/pc_player/build-release/NexusPlayer%201.0.0.exe) |
+| **Windows 64位** | **免安装绿色解压文件夹** | 解压即用文件夹，性能稳定，启动极快 | 📂 [直接打开 `win-unpacked/NexusPlayer.exe`](file:///D:/wwwroot/pc_player/build-release/win-unpacked/NexusPlayer.exe) |
 | **macOS (Mac)** | **苹果 Mac 安装包 (.dmg/.zip)** | 依赖 Mac 原生环境构建，支持 M 芯片/Intel | 🍎 [查看 Mac 平台打包编译指引](#-macos-mac-客户端打包编译说明) |
 
-> 📌 **提示**：如果在 Windows 资源管理器中打开，文件位于本项目的 [`release/`](file:///D:/wwwroot/pc_player/release/) 目录下。
+> 📌 **提示**：如果在 Windows 资源管理器中打开，文件位于本项目的 [`build-release/`](file:///D:/wwwroot/pc_player/build-release/) 目录下。
 
 ---
 

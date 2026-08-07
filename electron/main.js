@@ -23,7 +23,8 @@ function createWindow() {
     mainWindow.show();
   });
 
-  const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
+  // 严格防止端口冲突：打包后的软件 100% 加载本地静态 dist/index.html，绝对不读取任何 localhost 端口！
+  const isDev = !app.isPackaged && process.env.NODE_ENV === 'development';
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
   } else {

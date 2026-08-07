@@ -15,7 +15,7 @@
     "appId": "com.nexus.player",
     "productName": "NexusPlayer",
     "directories": {
-      "output": "release"
+      "output": "build-release"
     },
     "files": [
       "dist/**/*",
