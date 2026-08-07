@@ -18,14 +18,16 @@
       <div class="search-box">
         <span class="search-icon">🔍</span>
         <input
+          ref="searchInputRef"
           v-model="searchKeyword"
-          @keyup.enter="doSearch(1)"
+          @input="searchKeyword = ($event.target as HTMLInputElement).value"
+          @keydown.enter.prevent="handleEnterSearch"
           type="text"
           placeholder="搜索全网影视、动漫、纪录片..."
         />
-        <button v-if="searchKeyword" class="clear-btn" @click="searchKeyword = ''; loadLatestUpdates(1)">✕</button>
-        <button class="search-btn" @click="doSearch(1)" :disabled="loading">
-          {{ loading ? '搜索中...' : '搜索' }}
+        <button v-if="searchKeyword" class="clear-btn" @click="clearSearch">✕</button>
+        <button class="search-btn" @click="doSearch(1)" :disabled="searching">
+          {{ searching ? '搜索中...' : '搜索' }}
         </button>
       </div>
 
@@ -76,7 +78,10 @@
           <div class="player-right-panel">
             <div class="video-meta">
               <div class="meta-header">
-                <h2>{{ activeVideo.title }}</h2>
+                <div class="meta-title-box">
+                  <h2>{{ activeVideo.title }}</h2>
+                  <span class="playing-ep-badge" v-if="currentEpisodeName">▶ 正在播放：{{ currentEpisodeName }}</span>
+                </div>
                 <button 
                   class="fav-toggle-btn" 
                   :class="{ active: isCurrentFavorite }" 
@@ -537,24 +542,49 @@ const handleScroll = () => {
   }
 };
 
+const searchInputRef = ref<HTMLInputElement | null>(null);
+const searching = ref(false);
+
+const getQueryText = (): string => {
+  const domVal = searchInputRef.value ? searchInputRef.value.value : '';
+  const val = domVal || searchKeyword.value || '';
+  const trimmed = val.trim();
+  if (trimmed) {
+    searchKeyword.value = trimmed;
+  }
+  return trimmed;
+};
+
+// 软键盘/键盘回车搜索
+const handleEnterSearch = (e: Event) => {
+  const target = e.target as HTMLElement;
+  if (target) target.blur(); // 软键盘收起
+  doSearch(1);
+};
+
+// 显式清空搜索
+const clearSearch = () => {
+  searchKeyword.value = '';
+  if (searchInputRef.value) searchInputRef.value.value = '';
+  loadLatestUpdates(1);
+};
+
 // 搜索视频
 const doSearch = async (page: number = 1) => {
-  if (!searchKeyword.value.trim()) {
-    loadLatestUpdates(1);
-    return;
-  }
+  const query = getQueryText();
+  if (!query) return; // 避免软键盘 IME 输入法确认 Enter 导致的空关键词回跳首页
 
   if (page === 1) {
-    loading.value = true;
+    searching.value = true;
     currentPage.value = 1;
     videoList.value = [];
   } else {
     loadingMore.value = true;
   }
-  currentSectionTitle.value = `"${searchKeyword.value}" 的搜索结果`;
+  currentSectionTitle.value = `"${query}" 的搜索结果`;
 
   try {
-    const items = await VideoService.searchVideos(searchKeyword.value, page);
+    const items = await VideoService.searchVideos(query, page);
     if (page === 1) {
       videoList.value = items;
     } else {
@@ -563,7 +593,7 @@ const doSearch = async (page: number = 1) => {
   } catch (err) {
     console.error('搜索异常:', err);
   } finally {
-    loading.value = false;
+    searching.value = false;
     loadingMore.value = false;
   }
 };
@@ -750,13 +780,19 @@ onBeforeUnmount(() => {
 
 .search-btn {
   height: 28px;
-  padding: 0 16px;
+  padding: 0 14px;
   background: var(--accent-gradient);
   color: #fff;
   font-weight: 600;
   font-size: 12px;
   border-radius: 14px;
   cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 68px;
 }
 
 .search-btn:hover {
@@ -898,13 +934,33 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
 }
 
-.meta-header h2 {
+.meta-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 220px;
+}
+
+.meta-title-box h2 {
   font-size: 16px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+}
+
+.playing-ep-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c084fc;
+  background: rgba(192, 132, 252, 0.15);
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(192, 132, 252, 0.3);
+  width: fit-content;
 }
 
 .back-link-btn {

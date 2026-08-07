@@ -17,14 +17,14 @@ export class VideoService {
    * @param page 页码 (每页获取最新 40 条数据)
    */
   static async getLatestUpdates(page: number = 1): Promise<VideoDetail[]> {
-    const p1 = page * 2 - 1;
-    const p2 = page * 2;
+    const p1 = String(page * 2 - 1);
+    const p2 = String(page * 2);
 
     try {
       // 优先从全量 HTTPS 极速专线并发拉取最新更新列表
       const [data1, data2] = await Promise.all([
-        this.fetchMacCmsApi(this.primaryEndpoint, `ac=detail&h=24&pg=${p1}`),
-        this.fetchMacCmsApi(this.primaryEndpoint, `ac=detail&h=24&pg=${p2}`),
+        this.fetchMacCmsApi(this.primaryEndpoint, { ac: 'detail', h: '24', pg: p1 }),
+        this.fetchMacCmsApi(this.primaryEndpoint, { ac: 'detail', h: '24', pg: p2 }),
       ]);
 
       let results = [...data1, ...data2];
@@ -32,8 +32,8 @@ export class VideoService {
       // 若节点无响应，自动无缝降级至光速专线节点
       if (results.length === 0) {
         const [bk1, bk2] = await Promise.all([
-          this.fetchMacCmsApi(this.guangsuEndpoint, `ac=detail&h=24&pg=${p1}`),
-          this.fetchMacCmsApi(this.guangsuEndpoint, `ac=detail&h=24&pg=${p2}`),
+          this.fetchMacCmsApi(this.guangsuEndpoint, { ac: 'detail', h: '24', pg: p1 }),
+          this.fetchMacCmsApi(this.guangsuEndpoint, { ac: 'detail', h: '24', pg: p2 }),
         ]);
         results = [...bk1, ...bk2];
       }
@@ -41,8 +41,8 @@ export class VideoService {
       // 若仍为空，尝试第三热备节点 (非凡极速专线)
       if (results.length === 0) {
         const [ff1, ff2] = await Promise.all([
-          this.fetchMacCmsApi(this.feifanEndpoint, `ac=detail&h=24&pg=${p1}`),
-          this.fetchMacCmsApi(this.feifanEndpoint, `ac=detail&h=24&pg=${p2}`),
+          this.fetchMacCmsApi(this.feifanEndpoint, { ac: 'detail', h: '24', pg: p1 }),
+          this.fetchMacCmsApi(this.feifanEndpoint, { ac: 'detail', h: '24', pg: p2 }),
         ]);
         results = [...ff1, ...ff2];
       }
@@ -66,13 +66,13 @@ export class VideoService {
     }
 
     try {
-      const queryStr = `ac=detail&wd=${encodeURIComponent(query)}&pg=${page}`;
+      const params = { ac: 'detail', wd: query, pg: String(page) };
       
       // 全量并发搜索所有 CDN 专线节点
       const [lz, gs, ff] = await Promise.all([
-        this.fetchMacCmsApi(this.primaryEndpoint, queryStr),
-        this.fetchMacCmsApi(this.guangsuEndpoint, queryStr),
-        this.fetchMacCmsApi(this.feifanEndpoint, queryStr),
+        this.fetchMacCmsApi(this.primaryEndpoint, params),
+        this.fetchMacCmsApi(this.guangsuEndpoint, params),
+        this.fetchMacCmsApi(this.feifanEndpoint, params),
       ]);
 
       return this.mergeAndDeduplicateResults(lz, gs, ff);
@@ -91,11 +91,11 @@ export class VideoService {
     }
 
     try {
-      const queryStr = `ac=detail&wd=${encodeURIComponent(video.title.trim())}`;
+      const params = { ac: 'detail', wd: video.title.trim() };
       const [lz, gs, ff] = await Promise.all([
-        this.fetchMacCmsApi(this.primaryEndpoint, queryStr),
-        this.fetchMacCmsApi(this.guangsuEndpoint, queryStr),
-        this.fetchMacCmsApi(this.feifanEndpoint, queryStr),
+        this.fetchMacCmsApi(this.primaryEndpoint, params),
+        this.fetchMacCmsApi(this.guangsuEndpoint, params),
+        this.fetchMacCmsApi(this.feifanEndpoint, params),
       ]);
 
       const merged = this.mergeAndDeduplicateResults([video], lz, gs, ff);
@@ -132,19 +132,35 @@ export class VideoService {
   /**
    * HTTP 请求解析 MacCMS 格式视频源
    */
-  private static async fetchMacCmsApi(endpoint: string, queryParams: string): Promise<VideoDetail[]> {
-    const url = `${endpoint}?${queryParams}`;
-    
+  private static async fetchMacCmsApi(endpoint: string, queryParams: Record<string, string>): Promise<VideoDetail[]> {
+    const queryString = new URLSearchParams(queryParams).toString();
+    const fullUrl = `${endpoint}?${queryString}`;
+
     try {
       let data: any = null;
 
       // 如果在 Capacitor 安卓/iOS 原生环境运行，显式使用 CapacitorHttp 原生请求
-      // 100% 绕过 Android WebView 的 CORS 限制拉取 API 数据，同时零干扰 Hls.js 视频播发机制！
+      // 设置 responseType: 'text' 避免大 JSON 文本穿透原生桥接层时的转义崩溃，并在 JS 侧完成精准解析
       if (Capacitor.isNativePlatform()) {
-        const response = await CapacitorHttp.get({ url });
-        data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
-      } else {
-        const res = await fetch(url, {
+        try {
+          const response = await CapacitorHttp.get({
+            url: fullUrl,
+            responseType: 'text',
+            headers: { 'Accept': 'application/json' }
+          });
+          const text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+          if (text && text.includes('{')) {
+            const cleanJsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+            data = JSON.parse(cleanJsonStr);
+          }
+        } catch (e) {
+          console.warn('[CapacitorHttp] 原生 GET 异常:', e);
+        }
+      }
+
+      // 如果原生未响应或处于 Web / Electron 环境，使用标准 fetch 降级
+      if (!data) {
+        const res = await fetch(fullUrl, {
           method: 'GET',
           headers: { 
             'Accept': 'application/json'
@@ -164,7 +180,7 @@ export class VideoService {
       }
       return [];
     } catch (err) {
-      console.warn(`[Web视频源] 请求异常 (${url}):`, err);
+      console.warn(`[Web视频源] 请求异常 (${fullUrl}):`, err);
       return [];
     }
   }
