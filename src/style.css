@@ -1,0 +1,70 @@
+:root {
+  --bg-primary: #0b0f19;
+  --bg-secondary: #131b2e;
+  --bg-card: rgba(23, 32, 54, 0.7);
+  --bg-card-hover: rgba(30, 42, 70, 0.85);
+  --accent-primary: #6366f1;
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --shadow-main: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+  --font-family: 'Outfit', 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 滚动条高质感美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+input, button {
+  font-family: inherit;
+  outline: none;
+  border: none;
+}
+
+button {
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glassmorphism 卡片基础样式 */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}

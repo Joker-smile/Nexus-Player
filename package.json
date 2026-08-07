@@ -1,0 +1,67 @@
+{
+  "name": "pc-video-player",
+  "version": "1.0.0",
+  "description": "Modern PC Video Player Client based on Electron, Vue 3, and ArtPlayer",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build:win": "vite build && electron-builder --win portable dir",
+    "build:mac": "vite build && electron-builder --mac zip dmg"
+  },
+  "build": {
+    "appId": "com.nexus.player",
+    "productName": "NexusPlayer",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "build/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.entertainment"
+    }
+  },
+  "dependencies": {
+    "artplayer": "^5.1.6",
+    "hls.js": "^1.5.8",
+    "lucide-vue-next": "^0.344.0",
+    "vue": "^3.4.21"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "concurrently": "^8.2.2",
+    "electron": "^29.1.5",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.6",
+    "vue-tsc": "^2.0.6",
+    "wait-on": "^7.2.0"
+  }
+}
