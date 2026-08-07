@@ -15,6 +15,7 @@ node_modules/
 dist/
 dist-electron/
 release/
+release/*
 out/
 
 # IDE & Editor Settings
