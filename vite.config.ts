@@ -11,6 +11,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue'],
+          'vendor-player': ['artplayer', 'hls.js'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     strictPort: false, // 端口被占用时自动递增

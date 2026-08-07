@@ -1,9 +1,9 @@
 <template>
   <div class="player-container">
-    <!-- 顶部控制栏 -->
+    <!-- 顶部播放栏 -->
     <div class="player-header">
       <div class="left-actions">
-        <button class="back-btn" @click="$emit('close')" title="返回列表">
+        <button class="back-btn" @click="$emit('close')" title="返回列表 (Esc)">
           ← 返回列表
         </button>
         <div class="playing-info">
@@ -16,7 +16,12 @@
           </span>
         </div>
       </div>
-      <button class="close-btn" @click="$emit('close')" title="关闭播放器">✕</button>
+      <div class="right-actions">
+        <span class="shortcut-tip" title="快捷键: [空格] 暂停/播放 | [←/→] 快退/快进 5s | [↑/↓] 音量 | [F] 全屏">
+          ⌨️ 快捷键支持
+        </span>
+        <button class="close-btn" @click="$emit('close')" title="关闭播放器 (Esc)">✕</button>
+      </div>
     </div>
 
     <!-- 播放器主体 -->
@@ -88,8 +93,61 @@ const sanitizeUrl = (rawUrl: string): string => {
   return clean;
 };
 
+/**
+ * 彻底销毁上一个播放实例与音频 context，防重音、防复音残留
+ */
+const destroyPlayer = () => {
+  if (timeoutTimer) {
+    clearTimeout(timeoutTimer);
+    timeoutTimer = null;
+  }
+
+  // 1. 彻底停用并销毁 HLS 解码器与 TS 切片加载器
+  if (hlsInstance) {
+    try {
+      hlsInstance.stopLoad();
+      hlsInstance.detachMedia();
+      hlsInstance.destroy();
+    } catch (e) {
+      console.warn('销毁 HLS 实例异常:', e);
+    }
+    hlsInstance = null;
+  }
+
+  // 2. 彻底暂停 HTML5 原生 <video> 标签，清空 src 并释放 Audio Context
+  if (instance) {
+    try {
+      if (instance.video) {
+        instance.video.pause();
+        instance.video.removeAttribute('src');
+        instance.video.load();
+      }
+      instance.destroy(true);
+    } catch (e) {
+      console.warn('销毁 Artplayer 实例异常:', e);
+    }
+    instance = null;
+  }
+
+  // 3. 强力清空 DOM 容器，确保没有隐藏的旧 <video> 元素播放声音
+  if (artRef.value) {
+    const oldVideos = artRef.value.querySelectorAll('video');
+    oldVideos.forEach(v => {
+      try {
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+        v.remove();
+      } catch (e) {}
+    });
+    artRef.value.innerHTML = '';
+  }
+};
+
 const initPlayer = (url: string) => {
   if (!artRef.value || !url) return;
+
+  // 初始化前强力销毁旧实例，彻底解决声音重音问题
   destroyPlayer();
   errorMessage.value = '';
 
@@ -105,12 +163,15 @@ const initPlayer = (url: string) => {
   }, 10000);
 
   try {
+    const savedVolume = parseFloat(localStorage.getItem('NEXUS_PLAYER_VOLUME') || '0.8');
+
     const option: any = {
       container: artRef.value,
       url: targetUrl,
       type: 'm3u8',
       title: `${props.title} ${props.epName || ''}`,
       autoplay: true,
+      volume: savedVolume,
       fullscreen: true,
       fullscreenWeb: true,
       pip: true,
@@ -122,7 +183,7 @@ const initPlayer = (url: string) => {
       theme: '#6366f1',
       customType: {
         m3u8: function (video: HTMLVideoElement, videoUrl: string) {
-          // 开启原生 Pitch 声音保真防变声（修复声音变沙哑/变声问题）
+          // 开启 Pitch 原生防变声，锁死 1.0 音频输出保真
           video.preservesPitch = true;
           if ('webkitPreservesPitch' in video) {
             (video as any).webkitPreservesPitch = true;
@@ -148,15 +209,19 @@ const initPlayer = (url: string) => {
               hlsInstance = null;
             }
 
+            // 精细化调校 Hls.js 音质与 Audio Context 参数（解决沙哑、抖动、破音）
             hlsInstance = new Hls({
-              enableWorker: true,
+              enableWorker: false, // 禁用分层 Worker 防止 Chrome 音视频 PCM 重采样脱节
               lowLatencyMode: false,
-              backBufferLength: 60,
-              maxBufferHole: 0.5,
+              backBufferLength: 30,
+              maxBufferHole: 0.1, // 极限填补 100ms 缓冲区空隙，彻底消除音质沙哑跳帧
+              maxSeekHole: 0.2,
+              highBufferWatchdogPeriod: 1,
+              nudgeMaxRetry: 5,
+              maxAudioFramesDrift: 1, // 控制音频帧漂移不超过 1 帧
               manifestLoadingTimeOut: 10000,
               fragLoadingTimeOut: 12000,
               xhrSetup: function (xhr: XMLHttpRequest, reqUrl: string) {
-                // 在 Hls.js 请求 .ts 分片与清单文件时，自动更正非 SSL 端口的 https 协议
                 if (reqUrl.startsWith('https://') && /:\d+/.test(reqUrl) && !reqUrl.includes(':443')) {
                   const fixedUrl = reqUrl.replace(/^https:/, 'http:');
                   xhr.open('GET', fixedUrl, true);
@@ -164,6 +229,7 @@ const initPlayer = (url: string) => {
               }
             });
 
+            // 独占挂载 HLS 媒体流，绝不让 HTML5 Video 默认 src 双重加载
             hlsInstance.loadSource(videoUrl);
             hlsInstance.attachMedia(video);
 
@@ -219,6 +285,12 @@ const initPlayer = (url: string) => {
 
     instance = new Artplayer(option);
 
+    instance.on('video:volumechange', () => {
+      if (instance) {
+        localStorage.setItem('NEXUS_PLAYER_VOLUME', String(instance.volume));
+      }
+    });
+
     instance.on('video:ended', () => {
       emit('ended');
     });
@@ -235,32 +307,48 @@ const initPlayer = (url: string) => {
   }
 };
 
-const destroyPlayer = () => {
-  if (timeoutTimer) {
-    clearTimeout(timeoutTimer);
-    timeoutTimer = null;
+// 键盘快捷键监听
+const handleKeyDown = (e: KeyboardEvent) => {
+  const target = e.target as HTMLElement;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+    return;
   }
-  if (hlsInstance) {
-    try {
-      hlsInstance.stopLoad();
-      hlsInstance.detachMedia();
-      hlsInstance.destroy();
-    } catch (e) {}
-    hlsInstance = null;
-  }
-  if (instance) {
-    try {
-      if (instance.video) {
-        instance.video.pause();
-        instance.video.src = '';
-        instance.video.load();
+
+  if (!instance) return;
+
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      instance.toggle();
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      instance.seek = Math.max(0, instance.currentTime - 5);
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      instance.seek = Math.min(instance.duration, instance.currentTime + 5);
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      instance.volume = Math.min(1, instance.volume + 0.1);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      instance.volume = Math.max(0, instance.volume - 0.1);
+      break;
+    case 'f':
+    case 'F':
+      e.preventDefault();
+      instance.fullscreen = !instance.fullscreen;
+      break;
+    case 'Escape':
+      if (instance.fullscreen) {
+        instance.fullscreen = false;
+      } else {
+        emit('close');
       }
-      instance.destroy(true);
-    } catch (e) {}
-    instance = null;
-  }
-  if (artRef.value) {
-    artRef.value.innerHTML = '';
+      break;
   }
 };
 
@@ -270,9 +358,11 @@ watch(() => props.videoUrl, (newUrl) => {
 
 onMounted(() => {
   initPlayer(props.videoUrl);
+  window.addEventListener('keydown', handleKeyDown);
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyDown);
   destroyPlayer();
 });
 </script>
@@ -308,6 +398,22 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.right-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shortcut-tip {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  cursor: help;
+}
+
 .back-btn {
   background: rgba(99, 102, 241, 0.2);
   color: #a5b4fc;
@@ -316,6 +422,8 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .back-btn:hover {
@@ -402,6 +510,7 @@ onBeforeUnmount(() => {
   font-size: 16px;
   padding: 4px 8px;
   border-radius: 4px;
+  cursor: pointer;
 }
 
 .close-btn:hover {
@@ -458,5 +567,6 @@ onBeforeUnmount(() => {
   border-radius: 20px;
   font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
 }
 </style>

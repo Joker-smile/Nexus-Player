@@ -2,20 +2,22 @@
   "name": "pc-video-player",
   "version": "1.0.0",
   "description": "Modern PC Video Player Client based on Electron, Vue 3, and ArtPlayer",
+  "author": "Nexus Team <nexus@example.com>",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "build:win": "vite build && electron-builder --win portable dir",
-    "build:mac": "vite build && electron-builder --mac zip dmg"
+    "build:win": "node -e \"try{require('child_process').execSync('taskkill /F /IM NexusPlayer.exe /T 2>nul')}catch(e){}\" && vite build && electron-builder --win portable dir",
+    "build:mac": "vite build && electron-builder --mac zip dmg dir",
+    "build:all": "vite build && electron-builder --win portable dir --mac zip dmg dir"
   },
   "build": {
     "appId": "com.nexus.player",
     "productName": "NexusPlayer",
     "directories": {
-      "output": "build-release"
+      "output": "release"
     },
     "files": [
       "dist/**/*",
@@ -26,24 +28,46 @@
       "icon": "build/icon.ico",
       "target": [
         {
-          "target": "dir",
+          "target": "portable",
           "arch": [
             "x64"
           ]
         },
         {
-          "target": "portable",
+          "target": "dir",
           "arch": [
             "x64"
           ]
         }
       ]
     },
+    "portable": {
+      "artifactName": "${productName}-${version}-win-portable.${ext}",
+      "useZip": true
+    },
     "mac": {
       "icon": "build/icon.png",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "category": "public.app-category.entertainment"
     }

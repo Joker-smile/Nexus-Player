@@ -1,8 +1,11 @@
 <template>
   <div class="app-window">
-    <!-- 顶部导航栏 -->
+    <!-- 1. 原生桌面无边框标题栏与窗口控制条 -->
+    <TitleBar />
+
+    <!-- 2. 顶部导航与搜索栏 -->
     <header class="app-header glass-panel">
-      <!-- 1. 点击返回首页 -->
+      <!-- 点击返回首页 -->
       <div class="brand cursor-pointer" @click="goHome" title="点击返回首页">
         <div class="logo-icon">🎬</div>
         <div class="logo-text">
@@ -126,7 +129,7 @@
           </span>
         </div>
 
-        <!-- Loading 动态加载全效动画区 (无论是首页刷新还是搜索中，只要在加载，一律优先展示加载动画与骨架屏) -->
+        <!-- Loading 动态加载全效动画区 -->
         <div v-if="loading" class="loading-full-wrapper">
           <div class="loading-modal-card glass-panel">
             <div class="cyber-spinner">
@@ -190,7 +193,7 @@
           <p>尝试搜索其他关键词，或点击顶部品牌 Logo 返回首页。</p>
         </div>
 
-        <!-- 3. 最近更新专属：滚动触底自动瀑布流加载指示栏 -->
+        <!-- 滚动触底自动瀑布流加载指示栏 -->
         <div v-if="videoList.length > 0 && !searchKeyword.trim()" class="auto-load-bar">
           <div v-if="loadingMore" class="auto-load-spinner">
             <div class="audio-wave">
@@ -216,6 +219,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { VideoDetail, VideoEpisode } from './types/video';
 import { VideoService } from './services/videoService';
 import PlayerView from './components/PlayerView.vue';
+import TitleBar from './components/TitleBar.vue';
 
 // 响应式状态
 const searchKeyword = ref('');
@@ -238,7 +242,7 @@ const GROUP_SIZE = 50;
 // 追踪已尝试的线路索引，防止死循环无限切换
 const triedLineIndices = ref<Set<number>>(new Set());
 
-// 1. 点击 Logo / 品牌按钮一键返回首页
+// 点击 Logo 一键返回首页
 const goHome = () => {
   closePlayer();
   searchKeyword.value = '';
@@ -246,7 +250,7 @@ const goHome = () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-// 自动线路故障转移（当某条线路 404 / 500 / 资源超时时自动切到下一线路）
+// 自动线路故障转移（当某条线路超时时自动切到下一线路）
 const handleAutoSwitchLine = () => {
   if (!activeVideo.value || activeVideo.value.lines.length <= 1) return;
   triedLineIndices.value.add(currentLineIndex.value);
@@ -361,7 +365,7 @@ watch(currentEpisodeUrl, (newUrl) => {
   }
 });
 
-// 3. 默认加载全网最近实时更新 (预加载前 3 页)
+// 加载全网最近实时更新 (预加载前 3 页)
 const loadLatestUpdates = async (page: number = 1) => {
   if (page === 1) {
     loading.value = true;
@@ -371,10 +375,9 @@ const loadLatestUpdates = async (page: number = 1) => {
     searchKeyword.value = '';
 
     try {
-      // 预加载前 3 页数据 (并发拉取 120 条真实影片)
       const items = await VideoService.getPreloadedUpdates();
       videoList.value = items;
-      currentPage.value = 3; // 数据拉取完成后，指针置为 3
+      currentPage.value = 3;
     } catch (err) {
       console.error('获取最新更新失败:', err);
     } finally {
@@ -393,20 +396,18 @@ const loadLatestUpdates = async (page: number = 1) => {
   }
 };
 
-// 3. 最近更新专属瀑布流：触底自动加载下一页
+// 瀑布流触底自动加载下一页
 const loadNextPage = () => {
   if (loading.value || loadingMore.value) return;
-  // 仅在最近更新模式下加载瀑布流
   if (!searchKeyword.value.trim()) {
     currentPage.value += 1;
     loadLatestUpdates(currentPage.value);
   }
 };
 
-// 3. 监听鼠标/页面触底滚动 (仅最近更新启用瀑布流)
+// 监听页面触底滚动
 const handleScroll = () => {
   if (loading.value || loadingMore.value) return;
-  // 如果当前是搜索状态，不启用瀑布流自动续载
   if (searchKeyword.value.trim()) return;
 
   const scrollHeight = document.documentElement.scrollHeight;
@@ -418,7 +419,7 @@ const handleScroll = () => {
   }
 };
 
-// 搜索视频 (保持普通网格，不触发瀑布流)
+// 搜索视频
 const doSearch = async (page: number = 1) => {
   if (!searchKeyword.value.trim()) {
     loadLatestUpdates(1);
@@ -515,13 +516,13 @@ onBeforeUnmount(() => {
 }
 
 .app-header {
-  height: 68px;
-  padding: 0 28px;
+  height: 60px;
+  padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: sticky;
-  top: 0;
+  top: 38px;
   z-index: 100;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   margin-bottom: 20px;
@@ -544,14 +545,14 @@ onBeforeUnmount(() => {
 }
 
 .logo-icon {
-  font-size: 28px;
+  font-size: 26px;
   background: var(--accent-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .logo-text h1 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.5px;
 }
@@ -566,14 +567,14 @@ onBeforeUnmount(() => {
 }
 
 .search-box {
-  width: 480px;
-  height: 42px;
+  width: 460px;
+  height: 38px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-color);
-  border-radius: 24px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
-  padding: 0 6px 0 16px;
+  padding: 0 6px 0 14px;
   transition: all 0.3s;
 }
 
@@ -593,7 +594,9 @@ onBeforeUnmount(() => {
   flex: 1;
   background: transparent;
   color: var(--text-main);
-  font-size: 14px;
+  font-size: 13px;
+  border: none;
+  outline: none;
 }
 
 .clear-btn {
@@ -601,16 +604,18 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
   font-size: 14px;
   padding: 0 6px;
+  cursor: pointer;
 }
 
 .search-btn {
-  height: 32px;
-  padding: 0 18px;
+  height: 28px;
+  padding: 0 16px;
   background: var(--accent-gradient);
   color: #fff;
   font-weight: 600;
-  font-size: 13px;
-  border-radius: 16px;
+  font-size: 12px;
+  border-radius: 14px;
+  cursor: pointer;
 }
 
 .search-btn:hover {
@@ -621,11 +626,12 @@ onBeforeUnmount(() => {
 .header-actions .icon-btn {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-main);
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 18px;
+  font-size: 12px;
   font-weight: 500;
   border: 1px solid var(--border-color);
+  cursor: pointer;
 }
 
 .header-actions .icon-btn:hover {
@@ -637,7 +643,7 @@ onBeforeUnmount(() => {
   max-width: 1440px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 28px 40px;
+  padding: 0 24px 40px;
 }
 
 /* 嵌入式播放器界面 */
@@ -699,6 +705,7 @@ onBeforeUnmount(() => {
   font-size: 12px;
   padding: 4px 10px;
   border-radius: 12px;
+  cursor: pointer;
 }
 
 .back-link-btn:hover {
@@ -754,6 +761,7 @@ onBeforeUnmount(() => {
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
+  cursor: pointer;
 }
 
 .line-tabs button.active {
@@ -801,59 +809,75 @@ onBeforeUnmount(() => {
 }
 
 .ep-group-tabs button {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-muted);
   font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
 }
 
 .ep-group-tabs button.active {
   background: rgba(99, 102, 241, 0.3);
-  color: var(--accent-primary);
-  border: 1px solid var(--accent-primary);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.5);
 }
 
 .episodes-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  grid-auto-rows: 34px;
   gap: 8px;
   overflow-y: auto;
-  padding-right: 4px;
-  min-height: 0;
+  padding-right: 6px;
+  align-content: start;
 }
 
 .episodes-grid button {
-  height: 36px;
+  height: 34px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(255, 255, 255, 0.05);
-  color: var(--text-main);
+  color: var(--text-muted);
   font-size: 12px;
+  line-height: 1;
+  padding: 0 4px;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 0 4px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  box-sizing: border-box;
 }
 
 .episodes-grid button:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
 }
 
 .episodes-grid button.active {
   background: var(--accent-gradient);
   color: #fff;
-  border: none;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  font-weight: 600;
+  border-color: transparent;
 }
 
+/* 视频列表与搜索 */
 .section-title-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .section-title-bar h2 {
@@ -866,49 +890,39 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
-/* 影片卡片普通网格 */
 .video-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 20px;
 }
 
-/* 3. 最近更新专属瀑布流网格 */
-.video-grid.waterfall-mode {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
-  gap: 18px;
-}
-
 .video-card {
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .video-card:hover {
   transform: translateY(-6px);
+  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.25);
   border-color: rgba(99, 102, 241, 0.4);
-  box-shadow: var(--shadow-main);
 }
 
 .cover-wrapper {
   position: relative;
-  width: 100%;
-  padding-top: 140%;
+  aspect-ratio: 3 / 4;
   overflow: hidden;
   background: #1e293b;
 }
 
 .cover-wrapper img {
-  position: absolute;
-  top: 0;
-  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.5s;
+  transition: transform 0.4s ease;
 }
 
 .video-card:hover .cover-wrapper img {
@@ -931,61 +945,38 @@ onBeforeUnmount(() => {
 }
 
 .play-icon {
-  width: 44px;
-  height: 44px;
-  background: var(--accent-gradient);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 36px;
   color: #fff;
-  font-size: 16px;
-  padding-left: 3px;
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.8);
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
 }
 
-/* 2. 最新剧集/集数 Badge 标签 */
-.ep-badge {
+.ep-badge, .type-badge {
   position: absolute;
   bottom: 8px;
   right: 8px;
-  background: rgba(99, 102, 241, 0.9);
-  backdrop-filter: blur(6px);
-  color: #fff;
   font-size: 11px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 6px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.type-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  color: #fff;
-  font-size: 10px;
-  padding: 2px 6px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #a5b4fc;
+  padding: 2px 8px;
   border-radius: 4px;
+  backdrop-filter: blur(4px);
 }
 
 .card-info {
   padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .card-info .title {
   font-size: 14px;
   font-weight: 600;
-  margin-bottom: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* 2. 增加更新时间与类型行 */
 .card-meta {
   display: flex;
   align-items: center;
@@ -994,95 +985,27 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
-.meta-time {
-  color: #38bdf8;
-  font-size: 11px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.meta-type {
-  background: rgba(255, 255, 255, 0.06);
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-size: 10px;
-}
-
-.empty-state {
-  padding: 60px 20px;
-  text-align: center;
-  margin-top: 20px;
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-}
-
-.empty-state h3 {
-  font-size: 18px;
-  margin-bottom: 6px;
-}
-
-.empty-state p {
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
-/* 自动触底加载指示栏 */
-.auto-load-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 36px;
-  padding: 16px;
-}
-
-.auto-load-spinner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #a5b4fc;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.auto-load-tip {
-  color: var(--text-muted);
-  font-size: 13px;
-  opacity: 0.75;
-}
-
-/* ===== 动态全效加载动画样式 ===== */
+/* 骨架屏 & 加载动画 */
 .loading-full-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  margin-top: 10px;
+  gap: 30px;
 }
 
 .loading-modal-card {
+  padding: 40px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 20px;
-  padding: 22px 36px;
-  margin: 0 auto;
-  background: rgba(19, 27, 46, 0.85);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  box-shadow: 0 10px 40px rgba(99, 102, 241, 0.15);
-  border-radius: var(--radius-md);
+  text-align: center;
 }
 
 .cyber-spinner {
   position: relative;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 70px;
+  height: 70px;
 }
 
 .ring {
@@ -1093,60 +1016,63 @@ onBeforeUnmount(() => {
 }
 
 .ring-outer {
-  border-top-color: #6366f1;
-  border-right-color: #8b5cf6;
-  animation: spin-cw 1.2s linear infinite;
+  border-top-color: var(--accent-primary);
+  border-right-color: var(--accent-primary);
+  animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
 }
 
 .ring-inner {
-  inset: 5px;
+  inset: 10px;
   border-bottom-color: #ec4899;
-  border-left-color: #38bdf8;
-  animation: spin-ccw 0.9s linear infinite;
+  border-left-color: #ec4899;
+  animation: spin-reverse 0.9s cubic-bezier(0.5, 0, 0.5, 1) infinite;
 }
 
 .center-icon {
-  font-size: 18px;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
 }
 
-@keyframes spin-cw {
+@keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-@keyframes spin-ccw {
+@keyframes spin-reverse {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(-360deg); }
 }
 
 .loading-text h3 {
-  font-size: 15px;
-  font-weight: 700;
-  color: #f8fafc;
-  margin-bottom: 3px;
+  font-size: 16px;
+  margin-bottom: 6px;
 }
 
 .loading-text p {
-  font-size: 12px;
-  color: #94a3b8;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
-/* Shimmer 扫光骨架屏卡片 */
 .skeleton-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
 }
 
 .skeleton-card {
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.03);
+  height: 320px;
+  display: flex;
+  flex-direction: column;
 }
 
 .skeleton-cover {
-  width: 100%;
-  padding-top: 140%;
+  flex: 1;
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -1158,78 +1084,106 @@ onBeforeUnmount(() => {
 }
 
 .skeleton-line {
-  height: 12px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
 }
 
 .skeleton-title {
-  width: 75%;
-  height: 14px;
+  width: 70%;
 }
 
 .skeleton-sub {
-  width: 45%;
+  width: 40%;
 }
 
-/* Shimmer 流光动画 */
 .shimmer {
   position: relative;
   overflow: hidden;
 }
 
 .shimmer::after {
-  content: '';
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.06) 50%,
     rgba(255, 255, 255, 0) 100%
   );
-  animation: shimmer-swipe 1.5s infinite;
+  animation: shimmer 1.8s infinite;
+  content: '';
 }
 
-@keyframes shimmer-swipe {
-  100% { transform: translateX(100%); }
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
-/* 音频律动波形加载指示器 */
-.audio-wave {
+.empty-state {
+  padding: 60px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.empty-state h3 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.auto-load-bar {
+  margin-top: 30px;
+  padding: 20px;
+  text-align: center;
+}
+
+.auto-load-spinner {
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.audio-wave {
+  display: flex;
+  align-items: flex-end;
   gap: 3px;
   height: 16px;
 }
 
 .audio-wave span {
   width: 3px;
-  height: 100%;
-  background: var(--accent-gradient);
-  border-radius: 2px;
-  animation: wave 0.8s ease-in-out infinite alternate;
+  background: var(--accent-primary);
+  animation: wave 1s ease-in-out infinite;
 }
 
-.audio-wave span:nth-child(1) { animation-delay: 0.1s; }
-.audio-wave span:nth-child(2) { animation-delay: 0.25s; }
-.audio-wave span:nth-child(3) { animation-delay: 0.4s; }
-.audio-wave span:nth-child(4) { animation-delay: 0.25s; }
-.audio-wave span:nth-child(5) { animation-delay: 0.1s; }
+.audio-wave span:nth-child(1) { height: 40%; animation-delay: 0.1s; }
+.audio-wave span:nth-child(2) { height: 80%; animation-delay: 0.2s; }
+.audio-wave span:nth-child(3) { height: 100%; animation-delay: 0.3s; }
+.audio-wave span:nth-child(4) { height: 60%; animation-delay: 0.4s; }
+.audio-wave span:nth-child(5) { height: 30%; animation-delay: 0.5s; }
 
 @keyframes wave {
-  0% { transform: scaleY(0.25); }
-  100% { transform: scaleY(1); }
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
 }
 
-/* 动画过渡 */
-.slide-enter-active, .slide-leave-active {
-  transition: all 0.4s ease;
-}
-
-.slide-enter-from, .slide-leave-to {
-  opacity: 0;
-  transform: translateY(-20px);
+.auto-load-tip {
+  font-size: 13px;
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 </style>

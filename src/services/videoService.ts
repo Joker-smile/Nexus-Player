@@ -254,8 +254,4 @@ export class VideoService {
     });
     return Array.from(map.values());
   }
-
-  static getHotRecommendations(): VideoDetail[] {
-    return [];
-  }
 }
