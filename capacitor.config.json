@@ -1,0 +1,14 @@
+{
+  "appId": "com.nexus.player",
+  "appName": "Nexus Player",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true
+  }
+}

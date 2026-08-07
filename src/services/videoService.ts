@@ -1,3 +1,4 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { VideoDetail, VideoEpisode, VideoSourceLine } from '../types/video';
 
 const isDev = Boolean((import.meta as any).env?.DEV);
@@ -54,7 +55,7 @@ export class VideoService {
   }
 
   /**
-   * 2. 搜索视频功能接口 (Web 端实时搜索)
+   * 2. 搜索视频功能接口 (Web 端全网并发搜索)
    * @param keyword 搜索关键词
    * @param page 页码
    */
@@ -67,20 +68,14 @@ export class VideoService {
     try {
       const queryStr = `ac=detail&wd=${encodeURIComponent(query)}&pg=${page}`;
       
-      // 优先主专线搜索 (HTTPS 全量 CDN)
-      let results = await this.fetchMacCmsApi(this.primaryEndpoint, queryStr);
+      // 全量并发搜索所有 CDN 专线节点
+      const [lz, gs, ff] = await Promise.all([
+        this.fetchMacCmsApi(this.primaryEndpoint, queryStr),
+        this.fetchMacCmsApi(this.guangsuEndpoint, queryStr),
+        this.fetchMacCmsApi(this.feifanEndpoint, queryStr),
+      ]);
 
-      // 备用专线搜索
-      if (results.length === 0) {
-        results = await this.fetchMacCmsApi(this.guangsuEndpoint, queryStr);
-      }
-
-      // 第三专线搜索
-      if (results.length === 0) {
-        results = await this.fetchMacCmsApi(this.feifanEndpoint, queryStr);
-      }
-
-      return this.deduplicateVideos(results);
+      return this.mergeAndDeduplicateResults(lz, gs, ff);
     } catch (err) {
       console.error('[Web视频源] 搜索视频失败:', err);
       return [];
@@ -88,27 +83,90 @@ export class VideoService {
   }
 
   /**
+   * 确保选中的视频拥有多线路备份 (如果单线路，自动并发拉取备用节点补全)
+   */
+  static async ensureMultiLineVideo(video: VideoDetail): Promise<VideoDetail> {
+    if (!video || (video.lines && video.lines.length >= 2)) {
+      return video;
+    }
+
+    try {
+      const queryStr = `ac=detail&wd=${encodeURIComponent(video.title.trim())}`;
+      const [lz, gs, ff] = await Promise.all([
+        this.fetchMacCmsApi(this.primaryEndpoint, queryStr),
+        this.fetchMacCmsApi(this.guangsuEndpoint, queryStr),
+        this.fetchMacCmsApi(this.feifanEndpoint, queryStr),
+      ]);
+
+      const merged = this.mergeAndDeduplicateResults([video], lz, gs, ff);
+      return merged.length > 0 ? merged[0] : video;
+    } catch (e) {
+      return video;
+    }
+  }
+
+  /**
+   * 聚合多源路线去重
+   */
+  private static mergeAndDeduplicateResults(...lists: VideoDetail[][]): VideoDetail[] {
+    const map = new Map<string, VideoDetail>();
+
+    lists.flat().forEach(item => {
+      if (!item || !item.title) return;
+      const cleanTitle = item.title.trim();
+      if (!map.has(cleanTitle)) {
+        map.set(cleanTitle, { ...item, lines: [...item.lines] });
+      } else {
+        const existing = map.get(cleanTitle)!;
+        item.lines.forEach(newLine => {
+          if (!existing.lines.some(l => l.sourceName === newLine.sourceName)) {
+            existing.lines.push(newLine);
+          }
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }
+
+  /**
    * HTTP 请求解析 MacCMS 格式视频源
    */
-  private static fetchMacCmsApi(endpoint: string, queryParams: string): Promise<VideoDetail[]> {
-    return fetch(`${endpoint}?${queryParams}`, {
-      method: 'GET',
-      headers: { 
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-    })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data && data.list && Array.isArray(data.list)) {
-          return data.list.map((item: any) => this.formatNativeAppItem(item));
+  private static async fetchMacCmsApi(endpoint: string, queryParams: string): Promise<VideoDetail[]> {
+    const url = `${endpoint}?${queryParams}`;
+    
+    try {
+      let data: any = null;
+
+      // 如果在 Capacitor 安卓/iOS 原生环境运行，显式使用 CapacitorHttp 原生请求
+      // 100% 绕过 Android WebView 的 CORS 限制拉取 API 数据，同时零干扰 Hls.js 视频播发机制！
+      if (Capacitor.isNativePlatform()) {
+        const response = await CapacitorHttp.get({ url });
+        data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+      } else {
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: { 
+            'Accept': 'application/json'
+          },
+        });
+        if (res.ok) {
+          const text = await res.text();
+          if (text && text.includes('{')) {
+            const cleanJsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+            data = JSON.parse(cleanJsonStr);
+          }
         }
-        return [];
-      })
-      .catch(err => {
-        console.warn(`[Web视频源] 请求异常 (${endpoint}?${queryParams}):`, err);
-        return [];
-      });
+      }
+
+      if (data && data.list && Array.isArray(data.list)) {
+        return data.list.map((item: any) => this.formatNativeAppItem(item));
+      }
+      return [];
+    } catch (err) {
+      console.warn(`[Web视频源] 请求异常 (${url}):`, err);
+      return [];
+    }
   }
 
   /**

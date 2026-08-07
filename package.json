@@ -11,7 +11,9 @@
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build:win": "node -e \"try{require('child_process').execSync('taskkill /F /IM NexusPlayer.exe /T 2>nul')}catch(e){}\" && vite build && electron-builder --win portable dir",
     "build:mac": "vite build && electron-builder --mac zip dmg dir",
-    "build:all": "vite build && electron-builder --win portable dir --mac zip dmg dir"
+    "build:all": "vite build && electron-builder --win portable dir --mac zip dmg dir",
+    "cap:sync": "vite build && npx cap sync android",
+    "cap:open": "npx cap open android"
   },
   "build": {
     "appId": "com.nexus.player",
@@ -22,7 +24,8 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "build/**/*"
+      "build/**/*",
+      "!node_modules/@capacitor/android/**/*"
     ],
     "win": {
       "icon": "build/icon.ico",
@@ -73,6 +76,9 @@
     }
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "artplayer": "^5.1.6",
     "hls.js": "^1.5.8",
     "lucide-vue-next": "^0.344.0",

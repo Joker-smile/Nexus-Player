@@ -30,9 +30,25 @@
       </div>
 
       <div class="header-actions">
+        <button class="icon-btn fav-btn" @click="openFavoritesModal" title="查看我的追番收藏">
+          ❤️ 我的追番 <span class="nav-badge">{{ favoritesCount }}</span>
+        </button>
+        <button class="icon-btn history-btn" @click="openHistoryModal" title="查看观看历史记录">
+          🕒 观看记录 <span class="nav-badge" v-if="historyCount > 0">{{ historyCount }}</span>
+        </button>
         <button class="icon-btn" @click="goHome" title="刷新全网最新更新">✨ 最近更新</button>
       </div>
     </header>
+
+    <!-- 3. 追番与历史记录抽屉弹窗 -->
+    <UserLibraryModal
+      :visible="showLibraryModal"
+      :initialTab="libraryInitialTab"
+      @close="showLibraryModal = false"
+      @selectVideo="selectVideo"
+      @continueHistory="continueFromHistory"
+      @libraryChanged="favoritesVersion++; refreshLibraryCounts()"
+    />
 
     <!-- 主体区域 -->
     <main class="app-body">
@@ -47,10 +63,12 @@
               :sourceName="currentLineName"
               :lines="activeVideo.lines"
               :currentLineIdx="currentLineIndex"
+              :initialTime="currentInitialTime"
               @close="closePlayer"
               @ended="playNextEpisode"
               @autoSwitchLine="handleAutoSwitchLine"
               @switchLine="switchLine"
+              @timeUpdate="handleTimeUpdate"
             />
           </div>
 
@@ -59,7 +77,14 @@
             <div class="video-meta">
               <div class="meta-header">
                 <h2>{{ activeVideo.title }}</h2>
-                <button class="back-link-btn" @click="closePlayer">← 返回列表</button>
+                <button 
+                  class="fav-toggle-btn" 
+                  :class="{ active: isCurrentFavorite }" 
+                  @click="toggleFavorite"
+                  :title="isCurrentFavorite ? '已追番 (点击取消)' : '点击追番'"
+                >
+                  {{ isCurrentFavorite ? '💖 已追番' : '❤️ 追番' }}
+                </button>
               </div>
               <div class="tags">
                 <span class="tag">{{ activeVideo.type }}</span>
@@ -218,8 +243,10 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { VideoDetail, VideoEpisode } from './types/video';
 import { VideoService } from './services/videoService';
+import { UserLibraryService, WatchHistoryItem } from './services/userLibraryService';
 import PlayerView from './components/PlayerView.vue';
 import TitleBar from './components/TitleBar.vue';
+import UserLibraryModal from './components/UserLibraryModal.vue';
 
 // 响应式状态
 const searchKeyword = ref('');
@@ -234,6 +261,92 @@ const activeVideo = ref<VideoDetail | null>(null);
 const currentLineIndex = ref(0);
 const currentEpisodeName = ref('');
 const currentEpisodeUrl = ref('');
+const currentInitialTime = ref(0);
+
+// 追番与历史记录弹窗
+const showLibraryModal = ref(false);
+const libraryInitialTab = ref<'favorites' | 'history'>('favorites');
+
+const favoritesCount = ref(0);
+const historyCount = ref(0);
+const favoritesVersion = ref(0);
+
+const refreshLibraryCounts = () => {
+  favoritesCount.value = UserLibraryService.getFavorites().length;
+  historyCount.value = UserLibraryService.getHistory().length;
+};
+
+const isCurrentFavorite = computed(() => {
+  // 依赖 favoritesVersion 激活 Vue 响应式依赖追踪
+  favoritesVersion.value;
+  if (!activeVideo.value) return false;
+  return UserLibraryService.isFavorite(activeVideo.value.id);
+});
+
+const toggleFavorite = () => {
+  if (!activeVideo.value) return;
+  UserLibraryService.toggleFavorite(activeVideo.value);
+  favoritesVersion.value++;
+  refreshLibraryCounts();
+};
+
+const openFavoritesModal = () => {
+  libraryInitialTab.value = 'favorites';
+  showLibraryModal.value = true;
+};
+
+const openHistoryModal = () => {
+  libraryInitialTab.value = 'history';
+  showLibraryModal.value = true;
+};
+
+const handleTimeUpdate = (data: { currentTime: number; duration: number }) => {
+  if (!activeVideo.value || !currentEpisodeUrl.value) return;
+  UserLibraryService.saveWatchHistory({
+    videoId: activeVideo.value.id,
+    videoTitle: activeVideo.value.title,
+    cover: activeVideo.value.cover,
+    type: activeVideo.value.type,
+    lineIdx: currentLineIndex.value,
+    lineName: currentLineName.value,
+    epName: currentEpisodeName.value,
+    epUrl: currentEpisodeUrl.value,
+    currentTime: data.currentTime,
+    duration: data.duration,
+  });
+  refreshLibraryCounts();
+};
+
+const continueFromHistory = (historyItem: WatchHistoryItem) => {
+  // 查找影片对象
+  const targetVideo = videoList.value.find(v => v.id === historyItem.videoId) || {
+    id: historyItem.videoId,
+    title: historyItem.videoTitle,
+    cover: historyItem.cover,
+    type: historyItem.type,
+    year: '',
+    area: '',
+    actor: '',
+    director: '',
+    desc: '从观看历史中恢复播放',
+    remarks: '',
+    updateTime: '',
+    lines: [
+      {
+        sourceName: historyItem.lineName || '默认线路',
+        episodes: [{ name: historyItem.epName, url: historyItem.epUrl }]
+      }
+    ]
+  };
+
+  activeVideo.value = targetVideo as VideoDetail;
+  currentLineIndex.value = historyItem.lineIdx || 0;
+  currentEpisodeName.value = historyItem.epName;
+  currentEpisodeUrl.value = historyItem.epUrl;
+  currentInitialTime.value = historyItem.currentTime;
+  savePlayingState();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
 // 剧集分组
 const activeGroupIndex = ref(0);
@@ -252,7 +365,7 @@ const goHome = () => {
 
 // 自动线路故障转移（当某条线路超时时自动切到下一线路）
 const handleAutoSwitchLine = () => {
-  if (!activeVideo.value || activeVideo.value.lines.length <= 1) return;
+  if (!activeVideo.value || activeVideo.value.lines.length === 0) return;
   triedLineIndices.value.add(currentLineIndex.value);
 
   let nextLineIndex = -1;
@@ -268,7 +381,9 @@ const handleAutoSwitchLine = () => {
     console.log(`[Auto Failover]: 线路 ${currentLineIndex.value + 1} 响应超时，自动切至线路 ${nextLineIndex + 1}`);
     switchLine(nextLineIndex);
   } else {
-    console.warn(`[Auto Failover]: 该影片的所有线路已全部尝试完毕`);
+    console.warn(`[Auto Failover]: 备用线路已遍历，重新轮询第 1 条线路...`);
+    triedLineIndices.value.clear();
+    switchLine(0);
   }
 };
 
@@ -280,6 +395,7 @@ const savePlayingState = () => {
       lineIdx: currentLineIndex.value,
       epName: currentEpisodeName.value,
       epUrl: currentEpisodeUrl.value,
+      initialTime: currentInitialTime.value,
     };
     sessionStorage.setItem('NEXUS_PLAYING_STATE', JSON.stringify(state));
     location.hash = `play=${activeVideo.value.id}&ep=${encodeURIComponent(currentEpisodeName.value)}`;
@@ -302,6 +418,7 @@ const restorePlayingState = (): boolean => {
         currentLineIndex.value = state.lineIdx || 0;
         currentEpisodeName.value = state.epName || '';
         currentEpisodeUrl.value = state.epUrl || '';
+        currentInitialTime.value = state.initialTime || 0;
         return true;
       }
     } catch (e) {
@@ -314,6 +431,7 @@ const restorePlayingState = (): boolean => {
 // 关闭播放器
 const closePlayer = () => {
   activeVideo.value = null;
+  currentInitialTime.value = 0;
   savePlayingState();
 };
 
@@ -451,16 +569,29 @@ const doSearch = async (page: number = 1) => {
 };
 
 // 选中影片播放
-const selectVideo = (video: VideoDetail) => {
-  activeVideo.value = video;
+const selectVideo = async (video: VideoDetail) => {
+  // 异步补全全网备用专线 (量子 + 光速 + 非凡多源保障)
+  const fullVideo = await VideoService.ensureMultiLineVideo(video);
+  activeVideo.value = fullVideo;
   currentLineIndex.value = 0;
   activeGroupIndex.value = 0;
   triedLineIndices.value.clear();
-  if (video.lines.length > 0 && video.lines[0].episodes.length > 0) {
-    const firstEp = video.lines[0].episodes[0];
+
+  // 检查是否有历史播放记录，优先续播上一次看过的集数与秒数
+  const lastProgress = UserLibraryService.getProgress(fullVideo.id);
+
+  if (lastProgress && fullVideo.lines.length > 0) {
+    currentLineIndex.value = lastProgress.lineIdx || 0;
+    currentEpisodeName.value = lastProgress.epName;
+    currentEpisodeUrl.value = lastProgress.epUrl;
+    currentInitialTime.value = lastProgress.currentTime;
+  } else if (fullVideo.lines.length > 0 && fullVideo.lines[0].episodes.length > 0) {
+    const firstEp = fullVideo.lines[0].episodes[0];
     currentEpisodeName.value = firstEp.name;
     currentEpisodeUrl.value = firstEp.url;
+    currentInitialTime.value = 0;
   }
+
   savePlayingState();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
@@ -479,6 +610,15 @@ const switchLine = (lineIdx: number) => {
 const playEpisode = (ep: VideoEpisode) => {
   currentEpisodeName.value = ep.name;
   currentEpisodeUrl.value = ep.url;
+  
+  // 检查具体此集是否有播放历史
+  const progress = UserLibraryService.getProgress(activeVideo.value?.id || '', ep.url);
+  if (progress) {
+    currentInitialTime.value = progress.currentTime;
+  } else {
+    currentInitialTime.value = 0;
+  }
+
   savePlayingState();
 };
 
@@ -496,6 +636,7 @@ const playNextEpisode = () => {
 onMounted(() => {
   const restored = restorePlayingState();
   loadLatestUpdates(1);
+  refreshLibraryCounts();
   if (restored) {
     console.log('成功从本地恢复上次刷新前的播放界面！');
   }
@@ -567,7 +708,7 @@ onBeforeUnmount(() => {
 }
 
 .search-box {
-  width: 460px;
+  width: 420px;
   height: 38px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-color);
@@ -623,6 +764,12 @@ onBeforeUnmount(() => {
   transform: scale(1.02);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .header-actions .icon-btn {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-main);
@@ -632,10 +779,71 @@ onBeforeUnmount(() => {
   font-weight: 500;
   border: 1px solid var(--border-color);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .header-actions .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.nav-badge {
+  font-size: 10px;
+  background: var(--accent-primary);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.meta-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.meta-header h2 {
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.fav-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  height: 32px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.25s ease;
+}
+
+.fav-toggle-btn:hover {
+  background: rgba(236, 72, 153, 0.25);
+  color: #ec4899;
+  border-color: rgba(236, 72, 153, 0.5);
+}
+
+.fav-toggle-btn.active {
+  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 15px rgba(236, 72, 153, 0.4);
 }
 
 .app-body {
@@ -696,7 +904,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 240px;
+  max-width: 200px;
 }
 
 .back-link-btn {
@@ -1185,5 +1393,113 @@ onBeforeUnmount(() => {
   font-size: 13px;
   color: var(--text-muted);
   opacity: 0.6;
+}
+
+/* 📱 移动端 / 手机端 全屏响应式兼容量身适配 (格局清晰分明，绝不折叠重叠) */
+@media (max-width: 900px) {
+  .app-header {
+    height: auto;
+    padding: 10px 14px;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    top: 0;
+  }
+
+  .brand {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .search-box {
+    width: 100%;
+    height: 38px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .header-actions .icon-btn {
+    flex: 1;
+    justify-content: center;
+    white-space: nowrap;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .app-body {
+    padding: 0 12px 30px;
+  }
+
+  /* 移动端播放区域：由 2 列横排切为上下单列布局，格局清晰分明 */
+  .active-player-section {
+    grid-template-columns: 1fr;
+    height: auto;
+    max-height: none;
+    padding: 10px;
+    gap: 14px;
+  }
+
+  .player-left {
+    height: 56.25vw;
+    max-height: 280px;
+    min-height: 200px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+  }
+
+  .player-right-panel {
+    height: auto;
+    width: 100%;
+  }
+
+  .video-meta h2 {
+    font-size: 15px;
+  }
+
+  .fav-toggle-btn {
+    padding: 4px 12px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .episodes-selector {
+    height: 260px;
+  }
+
+  .episodes-grid {
+    grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+    grid-auto-rows: 32px;
+    gap: 6px;
+  }
+
+  .episodes-grid button {
+    height: 32px;
+    min-height: 32px;
+    font-size: 11px;
+  }
+
+  .video-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+  }
+
+  .card-info {
+    padding: 8px;
+  }
+
+  .card-info .title {
+    font-size: 13px;
+  }
+
+  .section-title-bar h2 {
+    font-size: 16px;
+  }
 }
 </style>

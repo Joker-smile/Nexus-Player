@@ -37,6 +37,11 @@
         </div>
       </div>
 
+      <!-- 自动续播浮层提示 -->
+      <div v-if="resumeTip" class="resume-tip-banner">
+        <span>⏩ {{ resumeTip }}</span>
+      </div>
+
       <div ref="artRef" class="artplayer-app"></div>
     </div>
   </div>
@@ -54,14 +59,16 @@ const props = defineProps<{
   sourceName?: string;
   lines?: any[];
   currentLineIdx?: number;
+  initialTime?: number;
 }>();
 
-const emit = defineEmits(['close', 'ended', 'autoSwitchLine', 'switchLine']);
+const emit = defineEmits(['close', 'ended', 'autoSwitchLine', 'switchLine', 'timeUpdate']);
 
 const artRef = ref<HTMLDivElement | null>(null);
 const currentQualityText = ref('加载中...');
 const realHeight = ref(0);
 const errorMessage = ref('');
+const resumeTip = ref('');
 
 let instance: Artplayer | null = null;
 let hlsInstance: Hls | null = null;
@@ -265,14 +272,17 @@ const initPlayer = (url: string) => {
             hlsInstance.on(Hls.Events.ERROR, function (_, data) {
               if (data.fatal) {
                 if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                  console.warn('HLS 网络层异常:', data.details);
+                  console.warn('HLS 网络层异常，尝试重连恢复:', data.details);
+                  hlsInstance?.startLoad();
+                } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                  hlsInstance?.recoverMediaError();
+                } else {
+                  console.warn('HLS 无法恢复的严重异常:', data.details);
                   errorMessage.value = '线路连接超时或非加密端口连接失败，自动切至备用线路...';
                   if (timeoutTimer) clearTimeout(timeoutTimer);
                   setTimeout(() => {
                     emit('autoSwitchLine');
-                  }, 1200);
-                } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                  hlsInstance?.recoverMediaError();
+                  }, 1500);
                 }
               }
             });
@@ -284,6 +294,30 @@ const initPlayer = (url: string) => {
     };
 
     instance = new Artplayer(option);
+
+    let hasSeekedInitial = false;
+    instance.on('ready', () => {
+      if (props.initialTime && props.initialTime > 5 && !hasSeekedInitial) {
+        hasSeekedInitial = true;
+        instance!.seek = props.initialTime;
+        const m = Math.floor(props.initialTime / 60);
+        const s = Math.floor(props.initialTime % 60);
+        const timeStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        resumeTip.value = `已为您自动续播至 ${timeStr}`;
+        setTimeout(() => {
+          resumeTip.value = '';
+        }, 4500);
+      }
+    });
+
+    instance.on('video:timeupdate', () => {
+      if (instance && instance.currentTime > 0) {
+        emit('timeUpdate', {
+          currentTime: instance.currentTime,
+          duration: instance.duration || 0,
+        });
+      }
+    });
 
     instance.on('video:volumechange', () => {
       if (instance) {
@@ -352,7 +386,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
   }
 };
 
-watch(() => props.videoUrl, (newUrl) => {
+watch([() => props.videoUrl, () => props.currentLineIdx], ([newUrl]) => {
   if (newUrl) initPlayer(newUrl);
 });
 
@@ -530,6 +564,38 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
+:deep(.art-controls) {
+  padding: 0 12px !important;
+}
+
+:deep(.art-controls-right) {
+  padding-right: 12px !important;
+  gap: 6px !important;
+}
+
+:deep(.art-control-fullscreen) {
+  margin-right: 8px !important;
+}
+
+@media (max-width: 900px) {
+  .player-header {
+    display: none !important;
+  }
+
+  :deep(.art-controls) {
+    padding: 0 8px !important;
+  }
+
+  :deep(.art-controls-right) {
+    padding-right: 12px !important;
+    gap: 4px !important;
+  }
+
+  :deep(.art-control-fullscreen) {
+    margin-right: 10px !important;
+  }
+}
+
 .player-error-mask {
   position: absolute;
   inset: 0;
@@ -568,5 +634,27 @@ onBeforeUnmount(() => {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.resume-tip-banner {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  background: rgba(99, 102, 241, 0.9);
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+  backdrop-filter: blur(8px);
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDown {
+  from { transform: translate(-50%, -20px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
 }
 </style>
