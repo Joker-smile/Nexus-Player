@@ -43,6 +43,7 @@
       </div>
 
       <div ref="artRef" class="artplayer-app"></div>
+
     </div>
   </div>
 </template>
@@ -244,45 +245,23 @@ const initPlayer = (url: string) => {
               if (timeoutTimer) clearTimeout(timeoutTimer);
               errorMessage.value = '';
 
-              if (instance) {
-                const lineItems = (props.lines || []).map((line, idx) => ({
-                  html: `${line.sourceName}`,
-                  lineIndex: idx,
-                  default: idx === (props.currentLineIdx || 0),
-                }));
-
-                if (lineItems.length > 0) {
-                  instance.setting.add({
-                    html: '画质与线路自选',
-                    name: 'line-select',
-                    tooltip: currentQualityText.value,
-                    selector: lineItems,
-                    onSelect: function (item: any) {
-                      emit('switchLine', item.lineIndex);
-                      return item.html;
-                    },
-                  });
-                }
-              }
-
               if (!data.levels || data.levels.length === 0) return;
-              hlsInstance!.currentLevel = data.levels.length - 1;
+              hlsInstance!.currentLevel = data.levels.length - 1; // 强制默认最高画质，不管网络如何
             });
 
             hlsInstance.on(Hls.Events.ERROR, function (_, data) {
               if (data.fatal) {
-                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                  console.warn('HLS 网络层异常，尝试重连恢复:', data.details);
-                  hlsInstance?.startLoad();
-                } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                  console.warn('HLS 媒体解密/解码异常，尝试尝试恢复:', data.details);
                   hlsInstance?.recoverMediaError();
                 } else {
-                  console.warn('HLS 无法恢复的严重异常:', data.details);
-                  errorMessage.value = '线路连接超时或非加密端口连接失败，自动切至备用线路...';
+                  // NETWORK_ERROR or OTHER_ERROR
+                  console.warn('HLS 遇到致命网络/解析异常，放弃重试，准备切线:', data.details);
+                  errorMessage.value = '当前线路失效或无响应，自动为您切至备用线路...';
                   if (timeoutTimer) clearTimeout(timeoutTimer);
                   setTimeout(() => {
                     emit('autoSwitchLine');
-                  }, 1500);
+                  }, 1200);
                 }
               }
             });
@@ -565,16 +544,16 @@ onBeforeUnmount(() => {
 }
 
 :deep(.art-controls) {
-  padding: 0 12px !important;
+  padding: 0 4px !important;
 }
 
 :deep(.art-controls-right) {
-  padding-right: 12px !important;
-  gap: 6px !important;
+  padding-right: 4px !important;
+  gap: 2px !important;
 }
 
 :deep(.art-control-fullscreen) {
-  margin-right: 8px !important;
+  margin-right: 2px !important;
 }
 
 @media (max-width: 900px) {
@@ -583,16 +562,16 @@ onBeforeUnmount(() => {
   }
 
   :deep(.art-controls) {
-    padding: 0 8px !important;
+    padding: 0 4px !important;
   }
 
   :deep(.art-controls-right) {
-    padding-right: 12px !important;
-    gap: 4px !important;
+    padding-right: 4px !important;
+    gap: 2px !important;
   }
 
   :deep(.art-control-fullscreen) {
-    margin-right: 10px !important;
+    margin-right: 2px !important;
   }
 }
 

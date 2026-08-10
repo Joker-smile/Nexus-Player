@@ -256,19 +256,20 @@ const getProgressPercent = (item: WatchHistoryItem): number => {
 }
 
 .modal-header {
-  height: 58px;
+  min-height: 58px;
   padding: 0 20px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   border-bottom: 1px solid var(--border-color);
   background: rgba(11, 15, 25, 0.6);
   flex-shrink: 0;
+  gap: 20px;
 }
 
 .tab-controls {
   display: flex;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .tab-btn {
@@ -284,6 +285,8 @@ const getProgressPercent = (item: WatchHistoryItem): number => {
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-btn:hover {
@@ -302,12 +305,15 @@ const getProgressPercent = (item: WatchHistoryItem): number => {
   background: rgba(255, 255, 255, 0.2);
   padding: 1px 7px;
   border-radius: 10px;
+  white-space: nowrap;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .clear-btn {
@@ -318,6 +324,8 @@ const getProgressPercent = (item: WatchHistoryItem): number => {
   padding: 5px 12px;
   border-radius: 14px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .clear-btn:hover {
@@ -468,6 +476,9 @@ const getProgressPercent = (item: WatchHistoryItem): number => {
   font-weight: 600;
   padding: 6px 8px;
   border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: center;
 }
 
 .unfav-btn {
@@ -476,6 +487,8 @@ const getProgressPercent = (item: WatchHistoryItem): number => {
   font-size: 11px;
   padding: 6px 8px;
   border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .unfav-btn:hover {
@@ -610,6 +623,8 @@ const getProgressPercent = (item: WatchHistoryItem): number => {
   font-weight: 600;
   padding: 4px 12px;
   border-radius: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .del-btn {
@@ -618,9 +633,48 @@ const getProgressPercent = (item: WatchHistoryItem): number => {
   font-size: 14px;
   padding: 2px 6px;
   border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .del-btn:hover {
   color: #ef4444;
+}
+
+/* 移动端/窄屏适配 */
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 10px;
+  }
+  
+  .modal-container {
+    height: 95vh;
+    max-height: 95vh;
+  }
+
+  .modal-header {
+    padding: 12px 10px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .modal-body {
+    padding: 12px;
+  }
+
+  .library-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .history-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>

@@ -1,7 +1,7 @@
 <template>
-  <div class="app-window">
-    <!-- 1. 原生桌面无边框标题栏与窗口控制条 -->
-    <TitleBar />
+  <div class="app-window" :class="{ 'is-electron': isElectron }">
+    <!-- 1. 原生桌面无边框标题栏与窗口控制条 (仅 PC 端显示) -->
+    <TitleBar v-if="isElectron" />
 
     <!-- 2. 顶部导航与搜索栏 -->
     <header class="app-header glass-panel">
@@ -10,7 +10,6 @@
         <div class="logo-icon">🎬</div>
         <div class="logo-text">
           <h1>Nexus Player</h1>
-          <span class="version-tag">PC Pro</span>
         </div>
       </div>
 
@@ -254,6 +253,7 @@ import TitleBar from './components/TitleBar.vue';
 import UserLibraryModal from './components/UserLibraryModal.vue';
 
 // 响应式状态
+const isElectron = ref(typeof window !== 'undefined' && Boolean((window as any).electronAPI));
 const searchKeyword = ref('');
 const videoList = ref<VideoDetail[]>([]);
 const loading = ref(false);
@@ -574,8 +574,14 @@ const doSearch = async (page: number = 1) => {
   const query = getQueryText();
   if (!query) return; // 避免软键盘 IME 输入法确认 Enter 导致的空关键词回跳首页
 
+  // 如果在播放页搜索，自动关闭播放器以展示搜索结果
+  if (activeVideo.value) {
+    closePlayer();
+  }
+
   if (page === 1) {
     searching.value = true;
+    loading.value = true;
     currentPage.value = 1;
     videoList.value = [];
   } else {
@@ -594,6 +600,7 @@ const doSearch = async (page: number = 1) => {
     console.error('搜索异常:', err);
   } finally {
     searching.value = false;
+    loading.value = false;
     loadingMore.value = false;
   }
 };
@@ -603,7 +610,14 @@ const selectVideo = async (video: VideoDetail) => {
   // 异步补全全网备用专线 (量子 + 光速 + 非凡多源保障)
   const fullVideo = await VideoService.ensureMultiLineVideo(video);
   activeVideo.value = fullVideo;
-  currentLineIndex.value = 0;
+  
+  // 将专线2 (index 1) 设为默认首选
+  let defaultIdx = 0;
+  if (fullVideo.lines.length > 1) {
+    defaultIdx = 1;
+  }
+  
+  currentLineIndex.value = defaultIdx;
   activeGroupIndex.value = 0;
   triedLineIndices.value.clear();
 
@@ -611,12 +625,12 @@ const selectVideo = async (video: VideoDetail) => {
   const lastProgress = UserLibraryService.getProgress(fullVideo.id);
 
   if (lastProgress && fullVideo.lines.length > 0) {
-    currentLineIndex.value = lastProgress.lineIdx || 0;
+    currentLineIndex.value = lastProgress.lineIdx || defaultIdx;
     currentEpisodeName.value = lastProgress.epName;
     currentEpisodeUrl.value = lastProgress.epUrl;
     currentInitialTime.value = lastProgress.currentTime;
-  } else if (fullVideo.lines.length > 0 && fullVideo.lines[0].episodes.length > 0) {
-    const firstEp = fullVideo.lines[0].episodes[0];
+  } else if (fullVideo.lines.length > 0 && fullVideo.lines[defaultIdx].episodes.length > 0) {
+    const firstEp = fullVideo.lines[defaultIdx].episodes[0];
     currentEpisodeName.value = firstEp.name;
     currentEpisodeUrl.value = firstEp.url;
     currentInitialTime.value = 0;
@@ -693,10 +707,14 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   position: sticky;
-  top: 38px;
+  top: 0;
   z-index: 100;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   margin-bottom: 20px;
+}
+
+.is-electron .app-header {
+  top: 38px;
 }
 
 .brand {

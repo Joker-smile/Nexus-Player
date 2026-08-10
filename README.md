@@ -50,53 +50,52 @@
 
 ---
 
-## 📱 Android (安卓) APK 打包指南 (途径 A)
+## 📦 编译与开发命令指南
 
-项目中已内置了移动端打包引擎 **Capacitor** 配置文件 [`capacitor.config.json`](file:///d:/wwwroot/pc_player/capacitor.config.json)。
+本项目使用 `pnpm` 作为包管理器，所有的编译和打包命令均已配置在 `package.json` 中。以下是开发与打包的完整命令清单：
 
-### 1. 一键同步并编译 APK
-在项目根目录运行：
+### 🔧 1. 本地开发与调试
 ```bash
-# 1. 构建 Vite 前端静态资源
-pnpm run build
+# 安装依赖
+pnpm install
 
-# 2. 同步资源至 Android 原生工程
+# 启动纯 Web 网页端开发服务器 (运行在浏览器)
+pnpm run dev
+
+# 启动 Electron 桌面端热更新开发环境 (独立窗口)
+pnpm run electron:dev
+```
+
+### 🪟 2. 桌面端打包 (Windows / macOS)
+```bash
+# 自动清理进程并打包 Windows 独立免安装版 (.exe)
+# 产物位置: release/NexusPlayer-1.0.0-win-portable.exe
+pnpm run build:win
+
+# 打包 macOS 客户端 (.dmg / .zip) - 需要在 Mac 系统环境运行
+pnpm run build:mac
+
+# 一键打包双平台绿色包 (如果当前为 Mac 系统)
+pnpm run build:all
+```
+> **排错提示**：如果 Windows 打包时遇到 `Unable to commit changes` 红字报错，通常是因为后台有未关闭的 `NexusPlayer.exe` 进程或杀毒软件拦截。请在任务管理器中强制结束 `NexusPlayer.exe`，然后重新运行 `pnpm run build:win` 即可。
+
+### 📱 3. 移动端打包 (Android APK)
+项目中已内置移动端跨端框架 **Capacitor**。在编译 APK 前，必须先构建前端代码并同步到原生工程。
+
+```bash
+# 步骤 1：编译前端 Web 静态代码并同步至 Android 原生工程目录
 pnpm run cap:sync
 
-# 3. 命令行一键打包 Android APK
+# 步骤 2：使用 Android Studio 直接打开原生工程进行调试 (可选)
+pnpm run cap:open
+
+# 步骤 3：命令行一键编译 APK 安装包
 cd android
 ./gradlew assembleDebug
 ```
-
-编译完成后，生成的 APK 安装包存储在：
-`android/app/build/outputs/apk/debug/NexusPlayer-1.0.apk`
-
----
-
-## 🛠️ 本地桌面端编译命令
-
-```bash
-# 1. 启动前端 + Electron 桌面热更新开发环境
-pnpm run electron:dev
-
-# 2. 打包 Windows 单文件绿色免安装版 (.exe)
-pnpm run build:win
-
-# 3. 打包 macOS 苹果客户端 (.zip/.dmg) - 需在 Mac 电脑或云端运行
-pnpm run build:mac
-
-# 4. 一键打包双平台绿色包
-pnpm run build:all
-```
-
----
-
-## 🍎 macOS 苹果客户端打包说明
-
-根据 **Electron-Builder 规范**，macOS 应用程序（`.dmg` 镜像与 `.app` 绿色包）需要依赖苹果 macOS 原生系统工具（`hdiutil`）。
-
-- **本地打包**：在 Mac 电脑上运行 `pnpm run build:mac` 即可在 `release/` 目录打出 `.app.zip` 和 `.dmg`。
-- **云端打包**：项目已配置 GitHub Actions 自动打包工作流 [`.github/workflows/build.yml`](file:///D:/wwwroot/pc_player/.github/workflows/build.yml)，代码 Push 推送至 GitHub 后将自动为您打出 Windows 与 macOS 绿色包。
+> 编译完成后，Android 安装包将生成于此路径：
+> `android/app/build/outputs/apk/debug/NexusPlayer-1.0.apk`
 
 ---
 

@@ -17,34 +17,24 @@ export class VideoService {
    * @param page 页码 (每页获取最新 40 条数据)
    */
   static async getLatestUpdates(page: number = 1): Promise<VideoDetail[]> {
-    const p1 = String(page * 2 - 1);
-    const p2 = String(page * 2);
+    const p1 = String(page);
 
     try {
-      // 优先从全量 HTTPS 极速专线并发拉取最新更新列表
-      const [data1, data2] = await Promise.all([
-        this.fetchMacCmsApi(this.primaryEndpoint, { ac: 'detail', h: '24', pg: p1 }),
-        this.fetchMacCmsApi(this.primaryEndpoint, { ac: 'detail', h: '24', pg: p2 }),
-      ]);
+      // 优先从全量 HTTPS 极速专线拉取最新更新列表
+      const data1 = await this.fetchMacCmsApi(this.primaryEndpoint, { ac: 'detail', h: '24', pg: p1 });
 
-      let results = [...data1, ...data2];
+      let results = [...data1];
 
       // 若节点无响应，自动无缝降级至光速专线节点
       if (results.length === 0) {
-        const [bk1, bk2] = await Promise.all([
-          this.fetchMacCmsApi(this.guangsuEndpoint, { ac: 'detail', h: '24', pg: p1 }),
-          this.fetchMacCmsApi(this.guangsuEndpoint, { ac: 'detail', h: '24', pg: p2 }),
-        ]);
-        results = [...bk1, ...bk2];
+        const bk1 = await this.fetchMacCmsApi(this.guangsuEndpoint, { ac: 'detail', h: '24', pg: p1 });
+        results = [...bk1];
       }
 
       // 若仍为空，尝试第三热备节点 (非凡极速专线)
       if (results.length === 0) {
-        const [ff1, ff2] = await Promise.all([
-          this.fetchMacCmsApi(this.feifanEndpoint, { ac: 'detail', h: '24', pg: p1 }),
-          this.fetchMacCmsApi(this.feifanEndpoint, { ac: 'detail', h: '24', pg: p2 }),
-        ]);
-        results = [...ff1, ...ff2];
+        const ff1 = await this.fetchMacCmsApi(this.feifanEndpoint, { ac: 'detail', h: '24', pg: p1 });
+        results = [...ff1];
       }
 
       return this.deduplicateVideos(results);
@@ -139,19 +129,24 @@ export class VideoService {
     try {
       let data: any = null;
 
-      // 如果在 Capacitor 安卓/iOS 原生环境运行，显式使用 CapacitorHttp 原生请求
-      // 设置 responseType: 'text' 避免大 JSON 文本穿透原生桥接层时的转义崩溃，并在 JS 侧完成精准解析
       if (Capacitor.isNativePlatform()) {
         try {
+          // 使用原生 HTTP 绕过 CORS 限制
           const response = await CapacitorHttp.get({
             url: fullUrl,
-            responseType: 'text',
             headers: { 'Accept': 'application/json' }
           });
-          const text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-          if (text && text.includes('{')) {
-            const cleanJsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
-            data = JSON.parse(cleanJsonStr);
+          
+          if (typeof response.data === 'string') {
+            const text = response.data;
+            if (text && text.includes('{')) {
+              const cleanJsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+              data = JSON.parse(cleanJsonStr);
+            }
+          } else if (typeof response.data === 'object' && response.data !== null) {
+            // 如果已经被底层的 Capacitor 自动解析为对象，直接使用！
+            // 坚决不能再使用 JSON.stringify 转回字符串，这是导致手机卡顿的元凶！
+            data = response.data;
           }
         } catch (e) {
           console.warn('[CapacitorHttp] 原生 GET 异常:', e);
@@ -190,15 +185,12 @@ export class VideoService {
    */
   static async getPreloadedUpdates(): Promise<VideoDetail[]> {
     try {
-      const [p1, p2, p3] = await Promise.all([
-        this.getLatestUpdates(1),
-        this.getLatestUpdates(2),
-        this.getLatestUpdates(3),
-      ]);
-      return this.deduplicateVideos([...p1, ...p2, ...p3]);
+      // 改为仅请求当前页，大大降低接口并发压力
+      const p1 = await this.getLatestUpdates(1);
+      return this.deduplicateVideos(p1);
     } catch (err) {
-      console.error('[Web视频源] 预加载前3页失败:', err);
-      return this.getLatestUpdates(1);
+      console.error('[Web视频源] 预加载失败:', err);
+      return [];
     }
   }
 
