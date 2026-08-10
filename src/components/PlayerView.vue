@@ -45,13 +45,23 @@
       <div ref="artRef" class="artplayer-app"></div>
 
     </div>
+    
+    <!-- 投屏弹窗 -->
+    <DlnaModal
+      :show="showDlnaModal"
+      :video-url="videoUrl"
+      :video-title="title"
+      @close="showDlnaModal = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
+import { Capacitor } from '@capacitor/core';
 import Artplayer from 'artplayer';
 import Hls from 'hls.js';
+import DlnaModal from './DlnaModal.vue';
 
 const props = defineProps<{
   videoUrl: string;
@@ -70,6 +80,7 @@ const currentQualityText = ref('加载中...');
 const realHeight = ref(0);
 const errorMessage = ref('');
 const resumeTip = ref('');
+const showDlnaModal = ref(false);
 
 let instance: Artplayer | null = null;
 let hlsInstance: Hls | null = null;
@@ -189,6 +200,25 @@ const initPlayer = (url: string) => {
       aspectRatio: true,
       autoOrientation: true,
       theme: '#6366f1',
+      layers: Capacitor.isNativePlatform() ? [
+        {
+          html: `<div class="cast-layer-btn">
+                   <span class="cast-icon">📺</span> <span class="cast-text">投屏</span>
+                 </div>`,
+          style: {
+            position: 'absolute',
+            top: '15px',
+            right: '15px',
+            zIndex: 99
+          },
+          click: function () {
+            if (instance) {
+              instance.pause();
+            }
+            showDlnaModal.value = true;
+          }
+        }
+      ] : [],
       customType: {
         m3u8: function (video: HTMLVideoElement, videoUrl: string) {
           // 开启 Pitch 原生防变声，锁死 1.0 音频输出保真
@@ -543,35 +573,40 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
-:deep(.art-controls) {
-  padding: 0 4px !important;
+
+.cast-layer-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  pointer-events: auto;
 }
 
-:deep(.art-controls-right) {
-  padding-right: 4px !important;
-  gap: 2px !important;
+.cast-layer-btn:hover {
+  background: rgba(99, 102, 241, 0.7);
+  border-color: rgba(99, 102, 241, 1);
 }
 
-:deep(.art-control-fullscreen) {
-  margin-right: 2px !important;
+.cast-layer-btn .cast-icon {
+  font-size: 16px;
+}
+
+.cast-layer-btn .cast-text {
+  font-size: 13px;
+  font-weight: 600;
 }
 
 @media (max-width: 900px) {
   .player-header {
     display: none !important;
-  }
-
-  :deep(.art-controls) {
-    padding: 0 4px !important;
-  }
-
-  :deep(.art-controls-right) {
-    padding-right: 4px !important;
-    gap: 2px !important;
-  }
-
-  :deep(.art-control-fullscreen) {
-    margin-right: 2px !important;
   }
 }
 
