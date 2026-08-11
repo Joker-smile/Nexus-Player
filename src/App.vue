@@ -344,13 +344,8 @@ const continueFromHistory = (historyItem: WatchHistoryItem) => {
     ]
   };
 
-  activeVideo.value = targetVideo as VideoDetail;
-  currentLineIndex.value = historyItem.lineIdx || 0;
-  currentEpisodeName.value = historyItem.epName;
-  currentEpisodeUrl.value = historyItem.epUrl;
-  currentInitialTime.value = historyItem.currentTime;
-  savePlayingState();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // 走完整的全网多线路节点补全逻辑，而非强塞假对象
+  selectVideo(targetVideo as VideoDetail);
 };
 
 // 剧集分组

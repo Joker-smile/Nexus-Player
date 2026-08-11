@@ -76,7 +76,7 @@ export class VideoService {
    * 确保选中的视频拥有多线路备份 (如果单线路，自动并发拉取备用节点补全)
    */
   static async ensureMultiLineVideo(video: VideoDetail): Promise<VideoDetail> {
-    if (!video || (video.lines && video.lines.length >= 2)) {
+    if (!video) {
       return video;
     }
 
@@ -96,7 +96,7 @@ export class VideoService {
   }
 
   /**
-   * 聚合多源路线去重
+   * 聚合多源路线去重 (修复了历史记录 Dummy 对象合并问题)
    */
   private static mergeAndDeduplicateResults(...lists: VideoDetail[][]): VideoDetail[] {
     const map = new Map<string, VideoDetail>();
@@ -104,13 +104,33 @@ export class VideoService {
     lists.flat().forEach(item => {
       if (!item || !item.title) return;
       const cleanTitle = item.title.trim();
+      
       if (!map.has(cleanTitle)) {
+        // 深拷贝防止污染原始对象
         map.set(cleanTitle, { ...item, lines: [...item.lines] });
       } else {
         const existing = map.get(cleanTitle)!;
+        
+        // 如果现有对象是历史记录构造的 dummy 对象，或者信息缺失，用新数据补全
+        if (!existing.desc || existing.desc === '从观看历史中恢复播放' || existing.desc === '暂无详细简介') {
+          existing.desc = item.desc || existing.desc;
+          existing.year = item.year || existing.year;
+          existing.area = item.area || existing.area;
+          existing.actor = item.actor || existing.actor;
+          existing.director = item.director || existing.director;
+          existing.cover = item.cover || existing.cover;
+          existing.remarks = item.remarks || existing.remarks;
+        }
+
         item.lines.forEach(newLine => {
-          if (!existing.lines.some(l => l.sourceName === newLine.sourceName)) {
+          const existingLineIdx = existing.lines.findIndex(l => l.sourceName === newLine.sourceName);
+          if (existingLineIdx === -1) {
             existing.lines.push(newLine);
+          } else {
+            // 如果同名线路新数据包含更多集数（如更新了），或者旧数据是 dummy 单集，强制覆盖最新剧集列表
+            if (newLine.episodes.length > existing.lines[existingLineIdx].episodes.length) {
+              existing.lines[existingLineIdx] = newLine;
+            }
           }
         });
       }
