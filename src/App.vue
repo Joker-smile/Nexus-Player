@@ -248,6 +248,8 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { VideoDetail, VideoEpisode } from './types/video';
 import { VideoService } from './services/videoService';
 import { UserLibraryService, WatchHistoryItem } from './services/userLibraryService';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import PlayerView from './components/PlayerView.vue';
 import TitleBar from './components/TitleBar.vue';
 import UserLibraryModal from './components/UserLibraryModal.vue';
@@ -602,37 +604,65 @@ const doSearch = async (page: number = 1) => {
 
 // 选中影片播放
 const selectVideo = async (video: VideoDetail) => {
-  // 异步补全全网备用专线 (量子 + 光速 + 非凡多源保障)
-  const fullVideo = await VideoService.ensureMultiLineVideo(video);
-  activeVideo.value = fullVideo;
+  // 1. 立即弹出面板并用现有的基础信息占位，实现零延迟响应交互
+  activeVideo.value = video;
   
-  // 将专线2 (index 1) 设为默认首选
+  // 初始化默认线路 index (通常外部只带有默认线路)
   let defaultIdx = 0;
-  if (fullVideo.lines.length > 1) {
+  if (video.lines && video.lines.length > 1) {
     defaultIdx = 1;
   }
-  
   currentLineIndex.value = defaultIdx;
   activeGroupIndex.value = 0;
   triedLineIndices.value.clear();
 
   // 检查是否有历史播放记录，优先续播上一次看过的集数与秒数
-  const lastProgress = UserLibraryService.getProgress(fullVideo.id);
+  const lastProgress = UserLibraryService.getProgress(video.id);
 
-  if (lastProgress && fullVideo.lines.length > 0) {
-    currentLineIndex.value = lastProgress.lineIdx || defaultIdx;
+  if (lastProgress && video.lines && video.lines.length > 0) {
+    currentLineIndex.value = lastProgress.lineIdx || 0;
     currentEpisodeName.value = lastProgress.epName;
     currentEpisodeUrl.value = lastProgress.epUrl;
     currentInitialTime.value = lastProgress.currentTime;
-  } else if (fullVideo.lines.length > 0 && fullVideo.lines[defaultIdx].episodes.length > 0) {
-    const firstEp = fullVideo.lines[defaultIdx].episodes[0];
+  } else if (video.lines && video.lines.length > 0 && video.lines[defaultIdx].episodes.length > 0) {
+    const firstEp = video.lines[defaultIdx].episodes[0];
     currentEpisodeName.value = firstEp.name;
     currentEpisodeUrl.value = firstEp.url;
+    currentInitialTime.value = 0;
+  } else {
+    currentEpisodeName.value = '';
+    currentEpisodeUrl.value = '';
     currentInitialTime.value = 0;
   }
 
   savePlayingState();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // 2. 后台异步静默拉取并补全全网备用专线 (量子 + 光速 + 非凡多源保障)
+  try {
+    const fullVideo = await VideoService.ensureMultiLineVideo(video);
+    
+    // 只有当用户没有切出当前视频时才进行无缝替换
+    if (activeVideo.value && activeVideo.value.id === video.id) {
+      activeVideo.value = fullVideo;
+      
+      // 如果这不是从历史记录进来的，并且刚刚只显示了 1 条默认线路，现在拿到了多条高质量专线，自动无缝切到专线 (如 index 1)
+      if (!lastProgress && fullVideo.lines.length > 1 && currentLineIndex.value === 0) {
+        currentLineIndex.value = 1;
+        if (fullVideo.lines[1].episodes.length > 0) {
+          currentEpisodeName.value = fullVideo.lines[1].episodes[0].name;
+          currentEpisodeUrl.value = fullVideo.lines[1].episodes[0].url;
+        }
+      } else if (lastProgress) {
+        // 如果是从历史记录进来的，防止原先的线路超界
+        if (currentLineIndex.value >= fullVideo.lines.length) {
+          currentLineIndex.value = 0;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('后台加载多线路失败：', err);
+  }
 };
 
 // 切换线路
@@ -680,6 +710,18 @@ onMounted(() => {
     console.log('成功从本地恢复上次刷新前的播放界面！');
   }
   window.addEventListener('scroll', handleScroll);
+
+  if (Capacitor.isNativePlatform()) {
+    CapacitorApp.addListener('backButton', () => {
+      if (activeVideo.value) {
+        closePlayer();
+      } else if (showLibraryModal.value) {
+        showLibraryModal.value = false;
+      } else {
+        CapacitorApp.minimizeApp();
+      }
+    });
+  }
 });
 
 onBeforeUnmount(() => {

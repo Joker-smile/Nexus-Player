@@ -192,14 +192,31 @@ const initPlayer = (url: string) => {
       autoplay: true,
       volume: savedVolume,
       fullscreen: true,
-      fullscreenWeb: true,
-      pip: true,
+      fullscreenWeb: Capacitor.getPlatform() !== 'android',
+      pip: Capacitor.getPlatform() !== 'android',
       setting: true,
       flip: true,
       playbackRate: true,
       aspectRatio: true,
       autoOrientation: true,
       theme: '#6366f1',
+      controls: [
+        {
+          position: 'left',
+          index: 11,
+          html: `<svg class="art-icon" viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: #fff;"><path d="M5 4l10 8-10 8V4z"></path><path d="M16 4h2v16h-2z"></path></svg>`,
+          tooltip: '播放下一集',
+          style: {
+            cursor: 'pointer',
+            marginLeft: '5px',
+            display: 'flex',
+            alignItems: 'center'
+          },
+          click: function () {
+            emit('ended');
+          },
+        }
+      ],
       layers: Capacitor.isNativePlatform() ? [
         {
           html: `<div class="cast-layer-btn">
@@ -433,6 +450,15 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   border-bottom: 1px solid var(--border-color);
   z-index: 10;
+}
+
+@media screen and (max-width: 768px) {
+  :deep([data-name="volume"]) {
+    display: none !important;
+  }
+  :deep([data-name="time"]) {
+    margin: 0 5px !important;
+  }
 }
 
 .left-actions {
