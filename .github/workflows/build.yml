@@ -39,11 +39,11 @@ jobs:
 
       - name: Build Windows Portable App
         if: matrix.os == 'windows-latest'
-        run: pnpm run build:win
+        run: npx vite build && npx electron-builder --win portable dir --publish never
 
       - name: Build macOS Portable App
         if: matrix.os == 'macos-latest'
-        run: pnpm run build:mac
+        run: npx vite build && npx electron-builder --mac zip dmg dir --publish never
 
       - name: Upload to GitHub Releases
         uses: softprops/action-gh-release@v2
