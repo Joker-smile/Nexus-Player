@@ -15,16 +15,16 @@
 ![主界面效果图](assets/home.jpg)
 
 ![播放界面效果图](assets/player.png)
-## ⚡ 多端打包产物一览
 
-本项目支持 **Windows 单文件绿色独立版**、**macOS 绿色包** 以及 **Android 安卓 APK 安装包**，无需繁琐安装向导，解压或双击即开即用！
+## 📦 官方 Releases 下载与安装包说明
+本项目已全面接入 GitHub Actions CI/CD 流水线，每次更新代码都会自动触发云端构建，并将最新产物推送到 [GitHub Releases 页面](https://github.com/Joker-smile/Nexus-Player/releases)。您可直接前往下载。
 
-| 运行平台 | 应用类型 | 特性说明 | 直接打开/文件路径 |
-| :--- | :--- | :--- | :--- |
-| **Android (安卓)** | **手机安装包 (.apk)** | 推荐！安卓手机/平板专用版本，全局 16:9 手机屏无折叠适配，含炫彩 Logo | 📱 [`android/app/build/outputs/apk/debug/NexusPlayer-1.0.apk`](file:///D:/wwwroot/pc_player/android/app/build/outputs/apk/debug/NexusPlayer-1.0.apk) |
-| **Windows 64位** | **单文件绿色独立版 (.exe)** | 推荐！单个 `.exe` 文件，随身 U 盘双击即开即用 | 🚀 [`release/NexusPlayer-1.0.0-win-portable.exe`](file:///D:/wwwroot/pc_player/release/NexusPlayer-1.0.0-win-portable.exe) |
-| **Windows 64位** | **绿色免安装文件夹** | 解压即用目录，启动极快，运行稳定 | 📂 [`release/win-unpacked/NexusPlayer.exe`](file:///D:/wwwroot/pc_player/release/win-unpacked/NexusPlayer.exe) |
-| **macOS (Mac)** | **苹果 Mac 绿色包 (.zip/.dmg)** | 支持 Intel 及 M 系列芯片，原生跨平台构建 | 🍎 [查看 macOS 客户端打包说明](#-macos-苹果客户端打包说明) |
+| Releases 产物名称 | 运行平台 | 特性说明与使用指南 |
+| :--- | :--- | :--- |
+| **`NexusPlayer-1.0.0-win-portable.exe`** | **Windows 64位** | **推荐！单文件绿色独立版**。单一 `.exe` 文件，随身 U 盘双击即开即用，纯绿色不写注册表。 |
+| **`NexusPlayer-1.0.0-arm64.dmg`** / **`mac.zip`** | **macOS (Mac)** | 苹果 Mac 原生桌面端。因为是开源免签应用，**首次打开如果提示“文件已损坏”或“无法验证开发者”，请在应用图标上按住 `Control` 键并右键选择“打开”即可，或通过终端执行 `sudo xattr -rd com.apple.quarantine /Applications/NexusPlayer.app` 解除限制**。 |
+| **`NexusPlayer-1.0.apk`** | **Android (安卓)** | **推荐！手机平板专用版本**。支持全局 16:9 横屏/竖屏完美自适应布局，隐藏重复元素，手感顺滑。*(注：当前 APK 暂需通过本地 Capacitor 或 Android Studio 编译获取，详见下方打包指令)* |
+| **`latest.yml`** / **`latest-mac.yml`** | **配置与更新** | Electron 自动更新系统所需的校验配置文件，普通用户下载时直接忽略即可。 |
 
 ---
 
