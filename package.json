@@ -15,9 +15,21 @@
     "cap:sync": "vite build && npx cap sync android",
     "cap:open": "npx cap open android"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Joker-smile/Nexus-Player.git"
+  },
   "build": {
     "appId": "com.nexus.player",
     "productName": "NexusPlayer",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Joker-smile",
+        "repo": "Nexus-Player",
+        "releaseType": "release"
+      }
+    ],
     "directories": {
       "output": "release"
     },
