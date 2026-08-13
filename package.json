@@ -9,9 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "build:win": "node -e \"try{require('child_process').execSync('taskkill /F /IM NexusPlayer.exe /T 2>nul')}catch(e){}\" && vite build && electron-builder --win portable dir",
-    "build:mac": "vite build && electron-builder --mac zip dmg dir",
-    "build:all": "vite build && electron-builder --win portable dir --mac zip dmg dir",
+    "build:win": "node -e \"try{require('child_process').execSync('taskkill /F /IM NexusPlayer.exe /T 2>nul')}catch(e){}\" && vite build && electron-builder --win portable dir --publish always",
+    "build:mac": "vite build && electron-builder --mac zip dmg dir --publish always",
+    "build:all": "vite build && electron-builder --win portable dir --mac zip dmg dir --publish always",
     "cap:sync": "vite build && npx cap sync android",
     "cap:open": "npx cap open android"
   },
