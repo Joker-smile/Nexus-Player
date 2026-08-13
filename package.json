@@ -1,6 +1,6 @@
 {
   "name": "pc-video-player",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Modern PC Video Player Client based on Electron, Vue 3, and ArtPlayer",
   "author": "Nexus Team <nexus@example.com>",
   "main": "electron/main.js",
