@@ -2,61 +2,114 @@ name: Build & Release
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: write
-
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
-
+  build-windows:
+    runs-on: windows-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v3
         with:
           version: 8
+      - run: pnpm install
+      - name: Build Windows Portable
+        run: npx vite build && npx electron-builder --win portable --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: release/*.exe
 
-      - name: Install dependencies
-        run: pnpm install
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - run: pnpm install
+      - name: Build macOS DMG
+        run: npx vite build && npx electron-builder --mac dmg --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: release/*.dmg
 
-      - name: Get version from package.json
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: pnpm install
+      - name: Build Android APK
+        run: |
+          npx vite build
+          npx cap sync android
+          cd android
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: android/app/build/outputs/apk/debug/*.apk
+
+  release:
+    needs: [build-windows, build-macos, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
         id: pkg
-        shell: bash
         run: echo "VERSION=$(node -p 'require("./package.json").version')" >> $GITHUB_OUTPUT
 
-      - name: Build Windows Portable App
-        if: matrix.os == 'windows-latest'
-        run: npx vite build && npx electron-builder --win portable dir --publish never
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
 
-      - name: Build macOS Portable App
-        if: matrix.os == 'macos-latest'
-        run: npx vite build && npx electron-builder --mac zip dmg dir --publish never
+      - name: List artifacts
+        run: ls -lh artifacts/
 
-      - name: Upload to GitHub Releases
+      - name: Delete existing release
+        run: gh release delete "v${{ steps.pkg.outputs.VERSION }}" --yes --cleanup-tag 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.pkg.outputs.VERSION }}
           name: Nexus Player v${{ steps.pkg.outputs.VERSION }}
+          body: |
+            ## 📦 安装包下载
+
+            | 文件 | 平台 | 说明 |
+            |------|------|------|
+            | `.exe` | Windows | 单文件绿色版，双击即用 |
+            | `.dmg` | macOS | Mac 安装包，首次打开如遇拦截请右键选择"打开" |
+            | `.apk` | Android | 手机/平板安装包 |
           draft: false
           prerelease: false
-          files: |
-            release/*.exe
-            release/*.dmg
-            release/*.zip
-            release/*.yml
-            release/*.blockmap
+          files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
