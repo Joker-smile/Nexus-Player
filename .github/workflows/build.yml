@@ -1,9 +1,7 @@
-name: Build Win & Mac Portable Apps
+name: Build & Release
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
     branches: [ main, master ]
   workflow_dispatch:
 
@@ -34,20 +32,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Get version from package.json
+        id: pkg
+        shell: bash
+        run: echo "VERSION=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
+
       - name: Build Windows Portable App
         if: matrix.os == 'windows-latest'
         run: pnpm run build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build macOS Portable App
         if: matrix.os == 'macos-latest'
         run: pnpm run build:mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Release Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload to GitHub Releases
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ matrix.os }}-app-release
-          path: release/*
+          tag_name: v${{ steps.pkg.outputs.VERSION }}
+          name: Nexus Player v${{ steps.pkg.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.yml
+            release/*.blockmap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
