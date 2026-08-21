@@ -971,8 +971,8 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 1fr 380px;
   gap: 20px;
-  height: 580px;
-  max-height: 620px;
+  /* 动态适应大屏幕、带鱼屏与横屏平板的高度 */
+  height: clamp(450px, calc(100vh - 160px), 720px);
   padding: 16px;
   margin-bottom: 30px;
   overflow: hidden;
@@ -1567,7 +1567,7 @@ onBeforeUnmount(() => {
     padding: 0 12px 30px;
   }
 
-  /* 移动端播放区域：由 2 列横排切为上下单列布局，格局清晰分明 */
+  /* 移动端/竖屏平板播放区域：由 2 列横排切为上下单列布局，格局清晰分明 */
   .active-player-section {
     grid-template-columns: 1fr;
     height: auto;
@@ -1577,8 +1577,9 @@ onBeforeUnmount(() => {
   }
 
   .player-left {
-    height: 56.25vw;
-    max-height: 280px;
+    height: 56.25vw; /* 严格维持 16:9 原生影视比例 */
+    /* 移除死板的 280px 限制，改为基于视口高度，让平板也能铺满横向享受大屏 */
+    max-height: 55vh; 
     min-height: 200px;
     width: 100%;
     position: relative;
@@ -1632,6 +1633,20 @@ onBeforeUnmount(() => {
 
   .section-title-bar h2 {
     font-size: 16px;
+  }
+}
+
+/* 针对极限小尺寸手机 (如 iPhone SE) 或折叠屏外屏的补充微调 */
+@media (max-width: 480px) {
+  .player-left {
+    max-height: 260px;
+  }
+  .episodes-selector {
+    height: 220px;
+  }
+  .video-grid {
+    grid-template-columns: repeat(2, 1fr); /* 手机端强制两列，封面更大气 */
+    gap: 10px;
   }
 }
 </style>
