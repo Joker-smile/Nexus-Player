@@ -667,11 +667,32 @@ const selectVideo = async (video: VideoDetail) => {
 
 // 切换线路
 const switchLine = (lineIdx: number) => {
+  const currentEpNameStr = currentEpisodeName.value;
   currentLineIndex.value = lineIdx;
-  activeGroupIndex.value = 0;
+  
   const eps = currentEpisodes.value;
   if (eps.length > 0) {
-    playEpisode(eps[0]);
+    // 1. 先尝试完全同名匹配
+    let sameEp = eps.find(e => e.name === currentEpNameStr);
+    
+    // 2. 如果没找到，尝试提取数字进行匹配 (例如 "第01集" 匹配 "第1集")
+    if (!sameEp) {
+      const currentNumStr = currentEpNameStr.replace(/[^0-9]/g, '');
+      if (currentNumStr) {
+        const currentNum = parseInt(currentNumStr, 10);
+        sameEp = eps.find(e => {
+          const numStr = e.name.replace(/[^0-9]/g, '');
+          return numStr ? parseInt(numStr, 10) === currentNum : false;
+        });
+      }
+    }
+
+    if (sameEp) {
+      playEpisode(sameEp);
+    } else {
+      activeGroupIndex.value = 0;
+      playEpisode(eps[0]);
+    }
   }
 };
 
